@@ -12,6 +12,12 @@ import type { Address, Hex, PublicClient } from "viem";
 
 import { COSTON2, FLARE_CONTRACT_REGISTRY, NO_DESTINATION_TAG_REASON } from "./config.js";
 import { encodeExecuteCommittedMemo, toXrplMemoHex } from "./memo.js";
+import {
+  DIRECT_MINTING_ABI,
+  computePaymentAmount,
+  readDirectMintingFees,
+  type PaymentBreakdown,
+} from "./fassets.js";
 import { prepareUserOp, type Call } from "./userop.js";
 import type { PackedUserOperation } from "./userop.js";
 
@@ -69,12 +75,20 @@ export interface PrepareParams {
   calls: readonly Call[];
   /** Human-readable summary shown in the wallet. */
   label: string;
-  /** Executor fee in the FAsset's smallest unit. */
-  feeUBA: bigint;
+  /**
+   * FXRP the user should end up with, in drops. Minting and executor fees are
+   * read from the AssetManager and added on top — never guess this, because a
+   * payment that fails to cover the minting fee mints nothing and the whole
+   * amount goes to the fee receiver, irreversibly.
+   */
+  netMintUBA: bigint;
+  /**
+   * Executor fee carried in the memo header. The reference implementation uses
+   * 0 and lets the AssetManager's own executor fee apply.
+   */
+  feeUBA?: bigint;
   /** Wallet identifier assigned by the Flare Foundation; 0 if unregistered. */
   walletId?: number;
-  /** XRP to send, in drops. Must cover the FAssets mint plus the executor fee. */
-  amountDrops: string;
 }
 
 export interface PreparedRequest {
@@ -89,6 +103,10 @@ export interface PreparedRequest {
   label: string;
   /** An executor pinned via 0xD0, or null if anyone may relay. */
   pinnedExecutor: Address | null;
+  /** Net mint + minting fee + executor fee. This is what the payment carries. */
+  payment: PaymentBreakdown;
+  /** Sum of call values; the executor forwards this as msg.value. */
+  totalCallValue: bigint;
   /** Ready to sign. Deliberately has no DestinationTag field. */
   xrplPayment: {
     TransactionType: "Payment";
@@ -102,6 +120,7 @@ export interface PreparedRequest {
 export class OneSigClient {
   readonly #client: PublicClient;
   #mac: Address | undefined;
+  #assetManager: Address | undefined;
 
   constructor(options: OneSigClientOptions = {}) {
     this.#client = createPublicClient({
@@ -161,6 +180,32 @@ export class OneSigClient {
     });
   }
 
+  /** AssetManagerFXRP, resolved from the registry. */
+  async assetManagerFXRP(): Promise<Address> {
+    if (this.#assetManager) return this.#assetManager;
+    const resolved = await this.#client.readContract({
+      address: FLARE_CONTRACT_REGISTRY,
+      abi: REGISTRY_ABI,
+      functionName: "getContractAddressByName",
+      args: ["AssetManagerFXRP"],
+    });
+    this.#assetManager = resolved;
+    return resolved;
+  }
+
+  /**
+   * The FAssets Core Vault XRPL address. Payments for memo instructions go
+   * here — sending to the operator wallet from getXrplProviderWallets() is a
+   * different flow and will silently do nothing.
+   */
+  async directMintingPaymentAddress(assetManager?: Address): Promise<string> {
+    return this.#client.readContract({
+      address: assetManager ?? (await this.assetManagerFXRP()),
+      abi: DIRECT_MINTING_ABI,
+      functionName: "directMintingPaymentAddress",
+    });
+  }
+
   /**
    * Turn a batch of Flare calls into an XRPL payment the user can sign.
    *
@@ -168,29 +213,22 @@ export class OneSigClient {
    * flight from one XRPL account will collide on nonce — serialise per account.
    */
   async prepare(params: PrepareParams): Promise<PreparedRequest> {
-    const {
-      xrplAddress,
-      calls,
-      label,
-      feeUBA,
-      walletId = 0,
-      amountDrops,
-    } = params;
+    const { xrplAddress, calls, label, netMintUBA, feeUBA = 0n, walletId = 0 } = params;
 
-    const [personalAccount, operators] = await Promise.all([
+    const [personalAccount, assetManager] = await Promise.all([
       this.getPersonalAccount(xrplAddress),
-      this.getOperatorXrplAddresses(),
+      this.assetManagerFXRP(),
     ]);
 
-    const destination = operators[0];
-    if (!destination) {
-      throw new Error("no operator XRPL address registered on MasterAccountController");
-    }
-
-    const [nonce, executor] = await Promise.all([
+    // The Core Vault — NOT the operator wallet. See fassets.ts for why.
+    const [destination, fees, nonce, executor] = await Promise.all([
+      this.directMintingPaymentAddress(assetManager),
+      readDirectMintingFees(this.#client, assetManager),
       this.getNonce(personalAccount),
       this.getExecutor(personalAccount),
     ]);
+
+    const payment = computePaymentAmount(netMintUBA, fees);
 
     const { userOp, userOpData, userOpHash } = prepareUserOp({
       sender: personalAccount,
@@ -213,13 +251,16 @@ export class OneSigClient {
       userOpData,
       userOpHash,
       label,
+      payment,
+      /** Native value the executor must forward as msg.value. */
+      totalCallValue: calls.reduce((acc, c) => acc + c.value, 0n),
       pinnedExecutor: executor === ZERO ? null : executor,
       // No DestinationTag, by construction. See NO_DESTINATION_TAG_REASON.
       xrplPayment: {
         TransactionType: "Payment",
         Account: xrplAddress,
         Destination: destination,
-        Amount: amountDrops,
+        Amount: payment.totalUBA.toString(),
         Memos: [{ Memo: { MemoData: toXrplMemoHex(memo) } }],
       },
     };
