@@ -1,0 +1,5 @@
+out/
+cache/
+broadcast/
+# lib/forge-std is vendored deliberately: a fresh clone must `forge build`
+# without running `forge install` first.
