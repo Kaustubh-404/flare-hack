@@ -36,5 +36,3 @@ logs/
 .vscode/
 tmp/
 
-# ─── Local toolchain (Go 1.25.1 for FCC tooling) ──────────────────────────
-.toolchain/

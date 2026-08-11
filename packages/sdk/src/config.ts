@@ -87,3 +87,27 @@ export const NO_DESTINATION_TAG_REASON =
   "XRPL payments targeting a Flare Smart Account must not carry a destination tag: " +
   "a tag forces FAssets minting to credit the tag-holder, allowing an unrelated " +
   "party to front-run the user operation.";
+
+/**
+ * Contracts we deployed for the ONESIG demo. Source of truth is
+ * packages/contracts/deployments/114.json, written by Deploy.s.sol.
+ * Verified live on Coston2 at deploy time.
+ */
+export const DEPLOYED = {
+  /** Gate 1 target. Records lastCaller so we can prove the call came via the PA. */
+  Counter: "0x1612b980Ddb6c13c01039A712634035Cfb2367E8",
+  /** 6-decimal FXRP stand-in. */
+  MockFXRP: "0xA2c647c06a3014842e22a3f5C6F390A8d74a52ED",
+  /** The deliberately XRPL-unaware demo dApp. */
+  MockVault: "0x64b89db12C2D91410011ce1Fcb626C87620Db444",
+  /** Human-readable instruction directory. */
+  InstructionRegistry: "0x06cC2210f97387C0d1e03DD2ef6E80a02a244E10",
+} as const satisfies Record<string, Address>;
+
+/** Selectors registered in the directory at deploy time. */
+export const SELECTORS = {
+  /** MockVault.deposit(uint256) */
+  deposit: "0xb6b55f25",
+  /** Counter.increment() */
+  increment: "0xd09de08a",
+} as const;
