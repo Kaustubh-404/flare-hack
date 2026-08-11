@@ -1,0 +1,17 @@
+{
+  "name": "@onesig/executor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@onesig/sdk": "*",
+    "@flarenetwork/flare-wagmi-periphery-package": "*",
+    "viem": "^2.21.55",
+    "xrpl": "^4.1.0"
+  }
+}
