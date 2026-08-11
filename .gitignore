@@ -1,0 +1,37 @@
+# ─── SECRETS — never commit ───────────────────────────────────────────────
+# Flare's own example repos commit live testnet keys (fce-sign/.env.coston2).
+# We do not repeat that mistake.
+.env
+.env.*
+!.env.example
+secrets/
+*.seed
+*wallet*.md
+*wallet*.json
+*.key
+*.pem
+config/extension.env
+config/proxy/extension_proxy.*.toml
+!config/proxy/*.example
+
+# ─── Node ─────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm
+coverage/
+
+# ─── Foundry ──────────────────────────────────────────────────────────────
+out/
+cache/
+broadcast/
+!broadcast/**/dry-run/
+
+# ─── Misc ─────────────────────────────────────────────────────────────────
+.DS_Store
+*.log
+logs/
+.idea/
+.vscode/
+tmp/
