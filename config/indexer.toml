@@ -1,0 +1,69 @@
+# C-chain indexer for the TEE proxy.
+#
+# tee-proxy reads Flare's signing policy and TEE instruction events out of a
+# MySQL database filled by this indexer. Flare runs a shared instance and hands
+# out read-only credentials on request — but the data is *public* C-chain logs,
+# the indexer is open source, and its own example config points at localhost.
+# Running our own removes a human from the critical path and is what the
+# architecture assumes.
+#
+#   docker run -d --name flare-idx-db -p 3306:3306 \
+#     -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=flare_ftso_indexer mysql:8
+#   .indexer/flare-cchain-indexer --config config/indexer.toml
+
+[indexer]
+mode = "full"
+start_index = 0
+stop_index = 0
+# Public RPC caps eth_getLogs; exceeding it fails the request outright.
+log_range = 1000
+batch_size = 200
+# Be a good citizen on a shared endpoint. Raise on a dedicated node.
+rpc_concurrency = 10
+new_block_check_millis = 2000
+confirmations = 1
+no_new_blocks_delay_warning = 120
+
+# Resolved by name through the on-chain ContractRegistry, so these do not need
+# hardcoded addresses and stay correct across redeployments.
+[[indexer.collect_logs]]
+contract_name = "FlareSystemsManager"
+topic = "undefined"
+
+[[indexer.collect_logs]]
+contract_name = "Relay"
+topic = "undefined"
+
+[[indexer.collect_logs]]
+contract_name = "VoterRegistry"
+topic = "undefined"
+
+# The FCC diamond — where TeeInstructionsSent originates.
+[[indexer.collect_logs]]
+contract_address = "0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE"
+topic = "undefined"
+
+[logger]
+level = "INFO"
+file = "./logs/indexer.log"
+console = true
+
+[chain]
+node_url = "https://coston2-api.flare.network/ext/C/rpc"
+chain_type = 1
+
+[db]
+host = "localhost"
+port = 3306
+database = "flare_ftso_indexer"
+username = "root"
+password = "root"
+log_queries = false
+drop_table_at_start = false
+# Two days is ample: the proxy needs a couple of reward epochs of signing
+# policy, not months of history. Keeps the first backfill short.
+history_drop = 172800
+
+[timeout]
+backoff_max_elapsed_time_seconds = 300
+rpc_timeout_millis = 10000

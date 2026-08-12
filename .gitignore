@@ -45,3 +45,4 @@ extension/out/
 extension/cache/
 extension/ts/dist/
 extension/ts/node_modules/
+.indexer/
