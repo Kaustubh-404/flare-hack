@@ -171,3 +171,74 @@ describe("error types", () => {
     expect(new DaLayerNotReadyError("not published").name).toBe("DaLayerNotReadyError");
   });
 });
+
+describe("losing the race to another relayer", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "onesig-race-"));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const makePipeline = (transactionUsed: boolean) =>
+    new ExecutorPipeline({
+      // The Core Vault is a shared queue; a competing relayer can finalise a
+      // pending mint first. The revert says PaymentAlreadyConfirmed (0x18dce79f).
+      publicClient: {
+        readContract: async () => transactionUsed,
+      } as never,
+      walletClient: {
+        writeContract: async () => {
+          throw new Error(
+            'The contract function "executeDirectMintingWithData" reverted with ' +
+              "the following signature:\n0x18dce79f",
+          );
+        },
+      } as never,
+      account: { address: PA } as never,
+      assetManager: PA,
+      stateDir: dir,
+      log: () => {},
+      fdc: { fetchProof: async () => ({ merkleProof: [], data: {} }) } as never,
+    });
+
+  it("marks the job executed when the payment is confirmed on-chain", async () => {
+    const pipeline = makePipeline(true);
+    let job = await pipeline.create({
+      xrplTxId: TX,
+      userOpData: "0x00" as Hex,
+      totalCallValue: 0n,
+      personalAccount: PA,
+      nonce: 0n,
+    });
+    job.state = "proof_fetched";
+    job.abiEncodedRequest = "0x00" as Hex;
+    job.roundId = 1;
+    await pipeline.save(job);
+
+    job = await pipeline.step(job);
+    // The user's operation ran; we simply did not earn the fee.
+    expect(job.state).toBe("executed");
+    expect(job.lastError).toBeUndefined();
+  });
+
+  it("does not claim success when the payment is NOT confirmed on-chain", async () => {
+    const pipeline = makePipeline(false);
+    let job = await pipeline.create({
+      xrplTxId: TX.replace(/^A1/, "C3"),
+      userOpData: "0x00" as Hex,
+      totalCallValue: 0n,
+      personalAccount: PA,
+      nonce: 0n,
+    });
+    job.state = "proof_fetched";
+    job.abiEncodedRequest = "0x00" as Hex;
+    job.roundId = 1;
+    await pipeline.save(job);
+
+    job = await pipeline.step(job);
+    expect(job.state).not.toBe("executed");
+  });
+});

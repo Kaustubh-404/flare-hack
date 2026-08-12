@@ -137,7 +137,28 @@ for them twice.
 
    `options.signers` is then a guard rail rather than the mechanism.
 
-8. **Three supposed blockers were not blockers.**
+8. **The Core Vault is a shared, publicly executable queue, and competing
+   relayers are live on Coston2.** Any pending direct mint can be finalised by
+   anyone willing to pay the gas, and they collect `executorFeeUBA`. We lost
+   that race twice in a row during the recovery below, reverting with
+   `0x18dce79f` — `PaymentAlreadyConfirmed()`, a selector absent from every ABI
+   in the periphery package.
+
+   Three consequences:
+
+   - `PaymentAlreadyConfirmed` is a **normal outcome, not an error**. The
+     pipeline now confirms `isTransactionIdUsed` on-chain and marks the job
+     executed rather than retrying. Flare's own reference implementation
+     carries a `reuseExistingMint` flag for exactly this.
+   - **The executor's fee revenue is contested.** "The protocol pays the
+     executor, so it funds itself" is true only when the executor wins the
+     race. Stated plainly rather than overclaimed.
+   - **This is what `getExecutor` pinning is for.** Pin an executor with the
+     `0xD0` memo and `handleMintedFAssets` reverts `WrongExecutor` for anyone
+     else. We had understood pinning as a privacy mechanism for LATCH; it is
+     equally an economic one. Losing the race is what surfaced that.
+
+9. **Three supposed blockers were not blockers.**
    - The Coston2 indexer DB is a copy of *public* C-chain logs; the indexer that
      fills it is open source and its default config points at localhost. Flare's
      shared instance is a convenience, not a gate.
@@ -271,6 +292,46 @@ Because every transition was persisted, the fix plus `scripts/resume-job.ts`
 finished the same mint — same user operation bytes, same nonce, same XRPL
 payment. **No second payment.** A straight-line async function would have lost
 the request and needed another 1.2 XRP and another round.
+
+## Recovering a stuck mint with `0xE0`
+
+The signer bug (finding 7) left 1.2 XRP at the Core Vault: the memo committed to
+a `userOp` whose sender was wrong for the payer, so `executeDirectMintingWithData`
+reverted atomically. The payment could never complete as written — changing the
+operation would break the commitment.
+
+`0xE0` is the documented way out, and the contract states the intent directly:
+
+```solidity
+// check ignoreMemo first — before any memo validation
+// allows recovery from malformed memos (length < 6, bad instruction ID,
+//                                       malformed UserOp, ...)
+```
+
+`memoIgnored` short-circuits `MemoInstructions.execute`, so the failing
+instruction never runs — while `_distributeFAssets` still does, so the FXRP
+mints. The flag is keyed by `(personalAccount, transactionId)` and deleted on
+use: it releases exactly one payment, only for the account that set it.
+
+One signature, 0.3 XRP:
+
+```
+0xE0 payment used?  true
+stuck payment used? true
+FXRP balance of PA: 1.1 → 2.3   (+1.2)
+```
+
+Reconciling the delta confirms both mints landed:
+
+| Payment | Total | Minting fee | Executor fee | To the account |
+|---|---|---|---|---|
+| `0xE0` recovery | 0.3 | 0.1 | 0.1 | 0.1 FXRP |
+| the stuck payment | 1.2 | 0.1 | 0.0 | 1.1 FXRP |
+| | | | | **1.2 FXRP** |
+
+**Our executor did not do this.** A competing relayer finalised both — see
+finding 8. The recovery mechanism is sound; the race is a separate lesson, and
+a more valuable one.
 
 ## Verification
 

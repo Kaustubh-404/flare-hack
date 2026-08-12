@@ -21,10 +21,15 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import type { Address, Hex } from "viem";
 
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { ExecutorPipeline, type Job } from "./pipeline.js";
 import { PendingStore } from "./store.js";
 import { Watcher } from "./watcher.js";
 import { XrplHttpClient } from "./xrpl.js";
+import { XamanClient } from "./xaman.js";
 
 export interface ServiceOptions {
   pipeline: ExecutorPipeline;
@@ -34,6 +39,24 @@ export interface ServiceOptions {
   port?: number;
   pollMs?: number;
   log?: (msg: string) => void;
+  /** Builds an operation for a given XRPL account. Injected to keep the SDK out of here. */
+  prepare?: (xrplAddress: string) => Promise<PreparedForWeb>;
+  /** Reads a Flare view function for the dashboard. */
+  readVaultBalance?: (personalAccount: string) => Promise<string>;
+}
+
+/** What the demo page needs to render an operation before it is signed. */
+export interface PreparedForWeb {
+  personalAccount: string;
+  nonce: string;
+  label: string;
+  userOpData: string;
+  userOpHash: string;
+  totalCallValue: string;
+  memoHex: string;
+  destination: string;
+  amountDrops: string;
+  calls: { target: string; label: string; selector: string }[];
 }
 
 export class ExecutorService {
@@ -45,6 +68,10 @@ export class ExecutorService {
   readonly #log: (msg: string) => void;
   readonly #live = new Map<string, Job>();
   readonly #xrpl: XrplHttpClient;
+  readonly #coreVaultAddress: string;
+  readonly #prepare: ServiceOptions["prepare"];
+  readonly #readVaultBalance: ServiceOptions["readVaultBalance"];
+  #xaman: XamanClient | undefined;
   #server: Server | undefined;
   #timer: NodeJS.Timeout | undefined;
 
@@ -53,9 +80,13 @@ export class ExecutorService {
     this.#store = opts.store ?? new PendingStore();
     this.#log = opts.log ?? ((m) => console.log(m));
     this.#xrpl = opts.xrpl;
+    this.#coreVaultAddress = opts.coreVaultAddress;
     this.#watcher = new Watcher(opts.xrpl, this.#store, opts.coreVaultAddress, this.#log);
     this.#port = opts.port ?? 8787;
     this.#pollMs = opts.pollMs ?? 10_000;
+    this.#prepare = opts.prepare;
+    this.#readVaultBalance = opts.readVaultBalance;
+    if (XamanClient.isConfigured()) this.#xaman = new XamanClient();
   }
 
   get store(): PendingStore {
@@ -157,6 +188,78 @@ export class ExecutorService {
           registeredAt: p.registeredAt,
         })),
       });
+    }
+
+    // ── demo page ─────────────────────────────────────────────────────────
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      const here = dirname(fileURLToPath(import.meta.url));
+      try {
+        const html = await readFile(join(here, "..", "public", "index.html"), "utf8");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(html);
+      } catch {
+        return json(404, { error: "demo page not found" });
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/config") {
+      return json(200, {
+        xamanConfigured: Boolean(this.#xaman),
+        coreVault: this.#coreVaultAddress,
+      });
+    }
+
+    // ── Xaman: identify, then sign ────────────────────────────────────────
+    if (req.method === "POST" && url.pathname === "/signin") {
+      if (!this.#xaman) return json(503, { error: "Xaman is not configured on this executor" });
+      const r = await this.#xaman.createSignInRequest("Sign in to ONESIG");
+      return json(200, { uuid: r.uuid, next: r.next, qr: r.qrPng });
+    }
+
+    if (req.method === "GET" && url.pathname.startsWith("/xaman/")) {
+      if (!this.#xaman) return json(503, { error: "Xaman is not configured on this executor" });
+      const uuid = url.pathname.slice("/xaman/".length);
+      return json(200, await this.#xaman.getSignRequest(uuid));
+    }
+
+    if (req.method === "POST" && url.pathname === "/prepare") {
+      if (!this.#prepare) return json(503, { error: "prepare is not wired on this executor" });
+      const body = (await readBody(req)) as { xrplAddress?: string };
+      if (!body.xrplAddress) return json(400, { error: "xrplAddress is required" });
+
+      const prepared = await this.#prepare(body.xrplAddress);
+      // Hold the bytes now, so the XRPL only ever carries their hash.
+      await this.#store.register({
+        userOpData: prepared.userOpData as `0x${string}`,
+        commitment: prepared.userOpHash as `0x${string}`,
+        personalAccount: prepared.personalAccount as Address,
+        nonce: prepared.nonce,
+        totalCallValue: prepared.totalCallValue,
+        label: prepared.label,
+      });
+
+      if (!this.#xaman) return json(200, { prepared, sign: null });
+      const sign = await this.#xaman.createSignRequest({
+        account: body.xrplAddress,
+        signers: [body.xrplAddress],
+        destination: prepared.destination,
+        amount: prepared.amountDrops,
+        memoData: prepared.memoHex,
+        instruction: prepared.label,
+        identifier: prepared.userOpHash as `0x${string}`,
+        expireMinutes: 15,
+      });
+      return json(200, {
+        prepared,
+        sign: { uuid: sign.uuid, next: sign.next, qr: sign.qrPng },
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/vault") {
+      if (!this.#readVaultBalance) return json(503, { error: "vault reads are not wired" });
+      const pa = url.searchParams.get("account");
+      if (!pa) return json(400, { error: "account query parameter is required" });
+      return json(200, { balance: await this.#readVaultBalance(pa) });
     }
 
     if (req.method === "GET" && url.pathname === "/health") {

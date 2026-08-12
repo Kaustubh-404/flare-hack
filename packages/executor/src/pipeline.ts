@@ -20,6 +20,22 @@ import { coston2 } from "@flarenetwork/flare-wagmi-periphery-package";
 
 import { DaLayerNotReadyError, FdcClient, VerifierNotReadyError } from "./fdc.js";
 
+/**
+ * `PaymentAlreadyConfirmed()` — someone else finalised this mint first.
+ *
+ * The Core Vault is a shared, publicly executable queue: any pending payment
+ * can be finalised by anyone willing to pay the gas, and they collect the
+ * executor fee. Competing relayers are live on Coston2 and do exactly this.
+ *
+ * So losing the race is a normal outcome, not a failure. The user's operation
+ * still executed — just at someone else's expense. Retrying is pointless and
+ * only burns gas.
+ *
+ * An account that needs a specific relayer should pin one with the 0xD0 memo
+ * opcode; `handleMintedFAssets` then reverts WrongExecutor for anyone else.
+ */
+const PAYMENT_ALREADY_CONFIRMED_SELECTOR = "0x18dce79f";
+
 export type JobState =
   | "observed"
   | "request_prepared"
@@ -232,6 +248,22 @@ export class ExecutorPipeline {
       job.attempts = 0;
       delete job.lastError;
     } catch (error) {
+      // Lost the race to another relayer. The mint happened; we simply did not
+      // earn the fee. Confirm on-chain rather than trusting the revert reason.
+      if (job.state === "proof_fetched" && isAlreadyConfirmed(error)) {
+        const confirmed = await this.#isTransactionUsed(job.xrplTxId);
+        if (confirmed) {
+          job.state = "executed";
+          delete job.lastError;
+          this.#opts.log(
+            `[${short(job.id)}] ✅ already finalised by another relayer — ` +
+              `the operation ran, the executor fee went elsewhere`,
+          );
+          await this.save(job);
+          return job;
+        }
+      }
+
       const retryable =
         error instanceof VerifierNotReadyError || error instanceof DaLayerNotReadyError;
       job.attempts += 1;
@@ -247,6 +279,28 @@ export class ExecutorPipeline {
 
     await this.save(job);
     return job;
+  }
+
+  /** Has the AssetManager already consumed this XRPL payment? */
+  async #isTransactionUsed(xrplTxId: Hex): Promise<boolean> {
+    try {
+      return await this.#opts.publicClient.readContract({
+        address: MASTER_ACCOUNT_CONTROLLER,
+        abi: [
+          {
+            type: "function",
+            name: "isTransactionIdUsed",
+            stateMutability: "view",
+            inputs: [{ name: "_transactionId", type: "bytes32" }],
+            outputs: [{ type: "bool" }],
+          },
+        ] as const,
+        functionName: "isTransactionIdUsed",
+        args: [xrplTxId],
+      });
+    } catch {
+      return false;
+    }
   }
 
   /** Drive a job to a terminal state. */
@@ -290,6 +344,14 @@ function findDelayedEvent(logs: readonly { data: Hex; topics: readonly Hex[] }[]
     }
   }
   return null;
+}
+
+/** Same on every Flare network — see the Smart Accounts reference. */
+const MASTER_ACCOUNT_CONTROLLER: Address = "0x434936d47503353f06750Db1A444DBDC5F0AD37c";
+
+function isAlreadyConfirmed(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return text.toLowerCase().includes(PAYMENT_ALREADY_CONFIRMED_SELECTOR);
 }
 
 const short = (id: string) => id.slice(0, 8);
