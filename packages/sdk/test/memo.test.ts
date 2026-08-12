@@ -23,7 +23,7 @@ import {
   fromXrplMemoHex,
   toXrplMemoHex,
 } from "../src/memo.js";
-import { encodeUserOp, hashUserOp, prepareUserOp } from "../src/userop.js";
+import { encodeUserOp, hashUserOp, prepareUserOp, type Call } from "../src/userop.js";
 
 const HASH32: Hex = `0x${"ab".repeat(32)}`;
 const EXECUTOR: Address = "0xE74686Fd89ACB480B3903724C367395d86ED4519";
@@ -123,6 +123,35 @@ describe("0xFE size is constant regardless of batch size", () => {
     expect(memoOne.length).toBe(42);
     // ...while the inline variant grows past the XRPL cap
     expect(fifty.userOpData.length / 2).toBeGreaterThan(1024);
+  });
+
+  it("the real 2-call demo batch cannot fit in an inline 0xFF memo", () => {
+    // approve + deposit — the batch scripts/demo-deposit.ts actually sends.
+    const approve: Call = {
+      target: EXECUTOR,
+      value: 0n,
+      data: ("0x095ea7b3" + "00".repeat(64)) as Hex,
+    };
+    const deposit: Call = {
+      target: EXECUTOR,
+      value: 0n,
+      data: ("0xb6b55f25" + "00".repeat(32)) as Hex,
+    };
+    const { userOpData } = prepareUserOp({ sender: EXECUTOR, nonce: 1n, calls: [approve, deposit] });
+    const userOpBytes = (userOpData.length - 2) / 2;
+
+    // 0xFF would have to carry the whole thing after a 10-byte header.
+    expect(HEADER_BYTES + userOpBytes).toBeGreaterThan(1024);
+    expect(() => encodeExecuteInlineMemo({ executorFeeUBA: FEE, userOpData })).toThrow(
+      /over the XRPL cap/,
+    );
+
+    // 0xFE carries it in 42 bytes regardless.
+    const memo = encodeExecuteCommittedMemo({
+      executorFeeUBA: FEE,
+      userOpHash: keccak256(userOpData),
+    });
+    expect(memo.length).toBe(42);
   });
 
   it("0xFF refuses to build past the 1024-byte XRPL cap", () => {
