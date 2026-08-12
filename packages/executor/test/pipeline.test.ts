@@ -35,7 +35,7 @@ describe("job persistence", () => {
       // Steps are never invoked in these tests; only persistence is exercised.
       publicClient: {} as never,
       walletClient: {} as never,
-      account: PA,
+      account: { address: PA } as never,
       fdc: {} as never,
       assetManager: PA,
       stateDir: dir,
@@ -104,7 +104,7 @@ describe("retry classification", () => {
     pipeline = new ExecutorPipeline({
       publicClient: {} as never,
       walletClient: {} as never,
-      account: PA,
+      account: { address: PA } as never,
       assetManager: PA,
       stateDir: dir,
       log: () => {},
@@ -141,7 +141,7 @@ describe("retry classification", () => {
     const hard = new ExecutorPipeline({
       publicClient: {} as never,
       walletClient: {} as never,
-      account: PA,
+      account: { address: PA } as never,
       assetManager: PA,
       stateDir: dir,
       log: () => {},

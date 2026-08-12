@@ -2,11 +2,20 @@
 
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { Address, Hex, PublicClient, WalletClient } from "viem";
+import type { Address, Hex, PrivateKeyAccount, PublicClient, WalletClient } from "viem";
 import { COSTON2 } from "@onesig/sdk";
 
 export interface ExecutorClients {
-  account: Address;
+  /**
+   * The signing Account object — NOT just its address.
+   *
+   * viem's writeContract resolves a bare address string by asking the node to
+   * sign (eth_sendTransaction), which a public RPC cannot do: it fails with
+   * "unknown account". Every write must receive this object.
+   */
+  account: PrivateKeyAccount;
+  /** Convenience for places that need the address as a value (e.g. proofOwner). */
+  address: Address;
   publicClient: PublicClient;
   walletClient: WalletClient;
 }
@@ -24,7 +33,8 @@ export function makeClients(
   const account = privateKeyToAccount(key);
 
   return {
-    account: account.address,
+    account,
+    address: account.address,
     publicClient: createPublicClient({ transport: http(rpcUrl) }),
     walletClient: createWalletClient({ account, transport: http(rpcUrl) }),
   };

@@ -14,7 +14,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Address, Hex, PublicClient, WalletClient } from "viem";
+import type { Account, Address, Hex, PublicClient, WalletClient } from "viem";
 import { decodeEventLog } from "viem";
 import { coston2 } from "@flarenetwork/flare-wagmi-periphery-package";
 
@@ -54,7 +54,8 @@ export interface Job {
 export interface PipelineOptions {
   publicClient: PublicClient;
   walletClient: WalletClient;
-  account: Address;
+  /** The Account OBJECT, not an address — see ExecutorClients.account. */
+  account: Account;
   fdc: FdcClient;
   assetManager: Address;
   /** Where jobs are persisted so a restart resumes instead of re-paying. */
@@ -141,7 +142,7 @@ export class ExecutorPipeline {
           log(`[${short(job.id)}] preparing attestation request…`);
           job.abiEncodedRequest = await fdc.prepareRequest({
             xrplTransactionId: job.xrplTxId,
-            proofOwner: this.#opts.account,
+            proofOwner: this.#opts.account.address,
           });
           job.state = "request_prepared";
           break;

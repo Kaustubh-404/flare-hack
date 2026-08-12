@@ -36,3 +36,6 @@ logs/
 .vscode/
 tmp/
 
+
+# ─── Executor job state (contains no secrets, but is machine-local) ────────
+.executor-state/

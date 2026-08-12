@@ -12,7 +12,14 @@
  */
 
 import { decodeAbiParameters, toHex } from "viem";
-import type { AbiParameter, Address, Hex, PublicClient, WalletClient } from "viem";
+import type {
+  AbiParameter,
+  Address,
+  Account,
+  Hex,
+  PublicClient,
+  WalletClient,
+} from "viem";
 import { coston2 } from "@flarenetwork/flare-wagmi-periphery-package";
 
 import { FLARE_CONTRACT_REGISTRY } from "@onesig/sdk";
@@ -57,7 +64,7 @@ export interface XrpPaymentProof {
 export class FdcClient {
   readonly #public: PublicClient;
   readonly #wallet: WalletClient;
-  readonly #account: Address;
+  readonly #account: Account;
   readonly #verifierBase: string;
   readonly #daLayer: string;
   readonly #apiKey: string;
@@ -67,7 +74,8 @@ export class FdcClient {
   constructor(opts: {
     publicClient: PublicClient;
     walletClient: WalletClient;
-    account: Address;
+    /** The Account OBJECT. A bare address makes viem ask the node to sign. */
+    account: Account;
     verifierBaseUrl?: string;
     daLayerUrl?: string;
     apiKey?: string;
@@ -113,7 +121,7 @@ export class FdcClient {
       sourceId: toHex(this.#sourceId, { size: 32 }),
       requestBody: {
         transactionId: params.xrplTransactionId,
-        proofOwner: params.proofOwner ?? this.#account,
+        proofOwner: params.proofOwner ?? this.#account.address,
       },
     };
 
