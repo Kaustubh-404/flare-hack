@@ -146,6 +146,53 @@ nonce                 0 → 1
 `lastCaller` is the load-bearing assertion: it proves the call arrived through
 `PersonalAccount.executeUserOp`, not from an EOA calling the contract directly.
 
+## The full ONESIG flow — dApp and executor as separate actors
+
+Gate 1 drove the executor from the same script. This run did not: a standalone
+executor service was already running, and the dApp registered its user
+operation and then never spoke to it again. The service noticed the XRPL
+payment on its own.
+
+| | |
+|---|---|
+| XRPL payment | [`9EA8E3FB…FFD3CC15`](https://testnet.xrpl.org/transactions/9EA8E3FB0C610FFD2EDBAF8ACED7DB9CEC42921A288E4BFEDC250AA7FFD3CC15) <!-- public tx hash, not-a-secret --> |
+| FDC voting round | [1423121](https://coston2-systems-explorer.flare.network/voting-round/1423121?tab=fdc) |
+| Flare execution | [`0x6ede7868…bba8ffbef`](https://coston2-explorer.flare.network/tx/0x6ede7868d12f4384d965f9792fec3be7c6dedf3726a735920157b42bba8ffbef) <!-- public tx hash, not-a-secret --> |
+
+**Two contract calls — `approve` then `deposit` — from one XRPL signature.**
+Verified on-chain:
+
+```
+MockVault.balanceOf(PA)   0 → 25000000     (25 mFXRP)
+MockVault.totalDeposits   0 → 25000000
+MockFXRP.balanceOf(PA)    1000 → 975 mFXRP
+personal account nonce    1 → 2
+```
+
+The service log shows the handover:
+
+```
+registered 0x8ea78145… — Deposit 25 mFXRP into MockVault
+observed 9EA8E3FB… → Deposit 25 mFXRP into MockVault
+job 9EA8E3FB… created
+[9EA8E3FB] retryable (attempt 1): verifier not ready: INVALID: TRANSACTION DOES NOT EXIST
+[9EA8E3FB] round 1423121 — …
+[9EA8E3FB] round 1423121 finalised
+[9EA8E3FB] proof retrieved
+[9EA8E3FB] ✅ executed
+```
+
+That first line is the verifier lagging the XRP Ledger, retried automatically —
+the exact case the retry classification exists for.
+
+### Why this batch needs `0xFE`
+
+The two-call batch ABI-encodes to **1024 bytes**. The inline `0xFF` variant
+would need `10 + 1024 = 1034` bytes of XRPL memo against a **1024-byte cap** —
+so this batch is *impossible* to express inline. With `0xFE` the memo is 42
+bytes, and would still be 42 bytes for a fifty-call batch. Asserted as a test
+in `packages/sdk/test/memo.test.ts`.
+
 ### What the first attempt cost
 
 The first run failed, and the state machine earned its keep. The XRPL payment
