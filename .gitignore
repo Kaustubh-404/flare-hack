@@ -46,3 +46,11 @@ extension/cache/
 extension/ts/dist/
 extension/ts/node_modules/
 .indexer/
+extension/config/extension.env
+extension/config/deploy.log
+extension/.env
+extension/.env.*
+!extension/.env.example
+extension/typescript/node_modules/
+extension/out/
+extension/cache/

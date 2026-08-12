@@ -1,9 +1,9 @@
 {
-  "name": "@latch/extension",
+  "name": "extension-scaffold",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "LATCH — a confidential executor for Flare Smart Accounts, running inside a TEE",
+  "description": "TypeScript implementation of the Flare Confidential Compute extension scaffold",
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",

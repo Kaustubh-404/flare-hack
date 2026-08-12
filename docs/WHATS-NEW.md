@@ -73,6 +73,18 @@ Each entry below is checkable: `git show <hash>`.
 
 ## Deployed
 
+**LATCH is a registered Flare Compute Extension on Coston2.**
+
+| | |
+|---|---|
+| InstructionSender | `0x185280D93027E413C3d4f256FF294033F50a2b86` |
+| Extension ID | `0x10280` (66,176) |
+
+Verified independently — `FlareTeeManager.getTeeExtensionInstructionsSender(66176)`
+returns our contract. Public extension IDs start at `0x10000`, so this is a real
+entry in Flare's live FCC registry alongside every other extension on the
+network.
+
 Coston2 (chain 114):
 
 | Contract | Address |
