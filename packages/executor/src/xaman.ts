@@ -41,6 +41,16 @@ export interface SignRequestInput {
   instruction: string;
   /** Ties the request back to a registered user operation. */
   identifier?: Hex;
+  /**
+   * Accounts permitted to sign. **Set this.**
+   *
+   * `txjson.Account` is advisory — Xaman lets the user sign with whichever
+   * account they have. `options.signers` is the enforcing field. Without it a
+   * user operation prepared for account A can be paid for by account B, and
+   * the mint reverts with InvalidSender because the personal account is
+   * derived from whoever actually paid.
+   */
+  signers?: readonly string[];
   expireMinutes?: number;
 }
 
@@ -137,6 +147,7 @@ export class XamanClient {
         submit: true,
         expire: input.expireMinutes ?? 10,
         force_network: "TESTNET",
+        ...(input.signers?.length ? { signers: [...input.signers] } : {}),
       },
       custom_meta: {
         instruction: input.instruction,
@@ -151,6 +162,29 @@ export class XamanClient {
       pushed: boolean;
     }>("POST", "/payload", payload);
 
+    return { uuid: r.uuid, next: r.next.always, qrPng: r.refs.qr_png, pushed: r.pushed };
+  }
+
+  /**
+   * A free "who are you" request.
+   *
+   * The dApp must know which XRPL account will sign *before* it builds the user
+   * operation: the personal account and the nonce both derive from it. Guessing
+   * produces an InvalidSender revert with the XRP already at the Core Vault.
+   *
+   * Costs nothing and moves nothing — SignIn is not a ledger transaction.
+   */
+  async createSignInRequest(instruction = "Sign in to ONESIG"): Promise<SignRequest> {
+    const r = await this.#call<{
+      uuid: string;
+      next: { always: string };
+      refs: { qr_png: string };
+      pushed: boolean;
+    }>("POST", "/payload", {
+      txjson: { TransactionType: "SignIn" },
+      options: { expire: 10 },
+      custom_meta: { instruction },
+    });
     return { uuid: r.uuid, next: r.next.always, qrPng: r.refs.qr_png, pushed: r.pushed };
   }
 

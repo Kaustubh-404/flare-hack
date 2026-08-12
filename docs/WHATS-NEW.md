@@ -119,7 +119,25 @@ for them twice.
    Established by bisecting the live API: 40 succeeds, 41 fails. A full
    `0x`-prefixed commitment is 66 characters, so it has to be truncated.
 
-7. **Three supposed blockers were not blockers.**
+7. **`txjson.Account` does not enforce who signs — `options.signers` does.**
+   Setting `Account` in a Xaman payload is advisory: the user may still sign
+   with a different account they hold. This is not a cosmetic difference. A
+   personal account and its nonce both derive from *whoever paid*, so a user
+   operation prepared for account A and paid for by account B reverts with
+   `InvalidSender`, atomically, with the XRP already sitting at the Core Vault.
+   Found the expensive way (see below).
+
+   The structural fix is not the flag. A dApp cannot build a user operation
+   before it knows which account will sign, so the flow has to be:
+
+   ```
+   IDENTIFY (free SignIn payload) → PREPARE for that account → SIGN with
+   options.signers pinned to it
+   ```
+
+   `options.signers` is then a guard rail rather than the mechanism.
+
+8. **Three supposed blockers were not blockers.**
    - The Coston2 indexer DB is a copy of *public* C-chain logs; the indexer that
      fills it is open source and its default config points at localhost. Flare's
      shared instance is a convenience, not a gate.
