@@ -17,9 +17,10 @@ start_index = 0
 stop_index = 0
 # Public RPC caps eth_getLogs; exceeding it fails the request outright.
 log_range = 1000
-batch_size = 200
-# Be a good citizen on a shared endpoint. Raise on a dedicated node.
-rpc_concurrency = 10
+batch_size = 500
+# Public endpoint, so not unlimited — but the backfill is one-off and the
+# steady state afterwards is a handful of calls per block.
+rpc_concurrency = 30
 new_block_check_millis = 2000
 confirmations = 1
 no_new_blocks_delay_warning = 120
@@ -60,8 +61,14 @@ username = "root"
 password = "root"
 log_queries = false
 drop_table_at_start = false
-# Two days is ample: the proxy needs a couple of reward epochs of signing
-# policy, not months of history. Keeps the first backfill short.
+# 172800 s (2 days) is the indexer's own enforced minimum — anything lower is
+# rejected at startup with "history drop must be at least 172800 seconds".
+#
+# Coston2 reward epochs are 21600 s (measured on-chain via
+# FlareSystemsManager.rewardEpochDurationSeconds), and tee-proxy reaches back
+# initial_signing_policy_offset = 2 epochs — so 12 h would suffice on paper.
+# The floor is not negotiable, so the backfill is ~96k blocks; batch_size and
+# rpc_concurrency below are raised to get through it in reasonable time.
 history_drop = 172800
 
 [timeout]
