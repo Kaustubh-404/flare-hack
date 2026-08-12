@@ -114,7 +114,12 @@ for them twice.
    executor does. This is a protocol-level guarantee, which matters a great deal
    for LATCH's trust story.
 
-6. **Three supposed blockers were not blockers.**
+6. **Xaman's `custom_meta.identifier` is capped at 40 characters**, and says so
+   nowhere. Over the cap you get `{"error":{"code":413}}` with no field named.
+   Established by bisecting the live API: 40 succeeds, 41 fails. A full
+   `0x`-prefixed commitment is 66 characters, so it has to be truncated.
+
+7. **Three supposed blockers were not blockers.**
    - The Coston2 indexer DB is a copy of *public* C-chain logs; the indexer that
      fills it is open source and its default config points at localhost. Flare's
      shared instance is a convenience, not a gate.

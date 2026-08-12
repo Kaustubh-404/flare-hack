@@ -5,3 +5,4 @@ export * from "./xrpl.js";
 export * from "./store.js";
 export * from "./watcher.js";
 export * from "./service.js";
+export * from "./xaman.js";
