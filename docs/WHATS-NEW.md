@@ -122,6 +122,44 @@ for them twice.
    - The FDC testnet verifier accepts the placeholder API key — verified live,
      HTTP 200, `status: VALID`.
 
+## Gate 1 — proven end to end on Coston2
+
+One XRPL payment, signed once, executed a call on Flare from a personal account
+that did not exist when the payment was signed.
+
+| | |
+|---|---|
+| XRPL payment | [`72641C74…4A2BF14E`](https://testnet.xrpl.org/transactions/72641C7489F785DE2F5BF5A166522431E8888793446AC2E143AB46094A2BF14E) — 1.2 XRP to the Core Vault <!-- public tx hash, not-a-secret --> |
+| Memo | 42 bytes, `0xFE` + commitment. The 737-byte user operation never touched XRPL |
+| FDC voting round | [1423089](https://coston2-systems-explorer.flare.network/voting-round/1423089?tab=fdc) |
+| Flare execution | [`0xc4b609f7…8cea9a35`](https://coston2-explorer.flare.network/tx/0xc4b609f7dc57bb2bb8b8e52519cc34f72be753f97521e5dd9d4fa6688cea9a35) |
+
+Verified independently by reading the chain, not by trusting the script:
+
+```
+Counter.count()       0 → 1
+Counter.lastCaller()  0x32d9D88C60E263241735adC87D957Db9cfBF7a39   (the personal account)
+personal account      585 bytes of code — deployed BY this mint; it was empty before
+nonce                 0 → 1
+```
+
+`lastCaller` is the load-bearing assertion: it proves the call arrived through
+`PersonalAccount.executeUserOp`, not from an EOA calling the contract directly.
+
+### What the first attempt cost
+
+The first run failed, and the state machine earned its keep. The XRPL payment
+succeeded and the verifier returned `VALID`; the failure was ours — viem's
+`writeContract` was handed the account as an address string, so it asked the
+public RPC to sign (`eth_sendTransaction`) and got "unknown account". The job
+gave up after five attempts, as designed, with the XRP already at the Core
+Vault.
+
+Because every transition was persisted, the fix plus `scripts/resume-job.ts`
+finished the same mint — same user operation bytes, same nonce, same XRPL
+payment. **No second payment.** A straight-line async function would have lost
+the request and needed another 1.2 XRP and another round.
+
 ## Verification
 
 Nothing above is asserted without a check that can be re-run:

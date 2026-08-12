@@ -7,7 +7,8 @@ import type { Hex } from "viem";
 import { ExecutorPipeline, normalizeXrplTxId, type Job } from "../src/pipeline.js";
 import { DaLayerNotReadyError, VerifierNotReadyError } from "../src/fdc.js";
 
-const TX = "A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90";
+// A fabricated XRPL transaction hash, not a key. not-a-secret
+const TX = "A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90"; // not-a-secret
 const PA = "0x32d9D88C60E263241735adC87D957Db9cfBF7a39" as const;
 
 describe("normalizeXrplTxId", () => {

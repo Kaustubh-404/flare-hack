@@ -25,10 +25,14 @@ fi
 echo "── 2. private keys / seeds inside tracked file contents ──"
 # 64-hex private keys, XRPL family seeds (s...), PEM blocks, populated env vars
 PATTERN='(^|[^0-9a-fA-Fx])[0-9a-fA-F]{64}([^0-9a-fA-F]|$)|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bs[1-9A-HJ-NP-Za-km-z]{28,}\b|(PRIVATE_KEY|SECRET|SEED|MNEMONIC)=["'"'"']?[^"'"'"'[:space:]]+'
+# Lines carrying an explicit `not-a-secret` marker are exempt. This is
+# deliberately per-line rather than per-file: excluding whole test directories
+# is where a real key would eventually hide.
 hits=$(git ls-files -z | xargs -0 $GREP -nIE "$PATTERN" 2>/dev/null \
         | $GREP -vE '^(package-lock\.json|.*\.example):' \
         | $GREP -vE 'integrity"|sha512-|sha256-' \
-        | $GREP -vE '^packages/contracts/lib/')   # vendored forge-std, read-only
+        | $GREP -vE '^packages/contracts/lib/' \
+        | $GREP -v 'not-a-secret')             # vendored forge-std, read-only
 if [ -n "$hits" ]; then
   echo "$hits" | head -20; echo "  ❌ possible secret in tracked content"; fail=1
 else
