@@ -159,3 +159,53 @@ describe("Watcher", () => {
     expect(await watcher.poll()).toHaveLength(0);
   });
 });
+
+describe("Watcher — no repeat reporting", () => {
+  let dir: string;
+  let store: PendingStore;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "onesig-repeat-"));
+    store = new PendingStore(dir);
+    await store.register({
+      userOpData: USER_OP,
+      personalAccount: PA,
+      nonce: "0",
+      totalCallValue: "0",
+      label: "test",
+    });
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("reports a payment once even though ledger_index_min is inclusive", async () => {
+    const memo = toXrplMemoHex(
+      encodeExecuteCommittedMemo({ executorFeeUBA: 0n, userOpHash: COMMITMENT }),
+    );
+    const tx = {
+      hash: "REPEATED",
+      ledger_index: 100,
+      validated: true,
+      tx_json: {
+        TransactionType: "Payment",
+        Account: "rSender",
+        Amount: "1200000",
+        Memos: [{ Memo: { MemoData: memo } }],
+      },
+    };
+    // The same transaction is returned by every poll, exactly as the real
+    // account_tx endpoint does once the cursor sits on its ledger.
+    const watcher = new Watcher(
+      { call: async () => ({ transactions: [tx] }) } as never,
+      store,
+      "rCoreVault",
+      () => {},
+    );
+
+    expect(await watcher.poll()).toHaveLength(1);
+    expect(await watcher.poll()).toHaveLength(0);
+    expect(await watcher.poll()).toHaveLength(0);
+    expect(watcher.seenCount).toBe(1);
+  });
+});

@@ -57,6 +57,14 @@ export function commitmentFromMemos(tx: Record<string, unknown>): Hex | null {
 
 export class Watcher {
   #lastLedger = 0;
+  /**
+   * Transactions already handed to the caller.
+   *
+   * `ledger_index_min` is inclusive, so advancing the cursor to the highest
+   * ledger seen still returns that ledger's transactions on the next poll.
+   * Without this set, every tick re-reports the same payment forever.
+   */
+  readonly #seen = new Set<string>();
 
   constructor(
     private readonly xrpl: XrplHttpClient,
@@ -87,6 +95,9 @@ export class Watcher {
       const ledgerIndex = entry.ledger_index ?? 0;
       if (ledgerIndex > this.#lastLedger) this.#lastLedger = ledgerIndex;
 
+      const hashEarly = entry.hash ?? (tx["hash"] as string | undefined);
+      if (hashEarly && this.#seen.has(hashEarly)) continue;
+
       const commitment = commitmentFromMemos(tx);
       if (!commitment) continue;
 
@@ -94,8 +105,9 @@ export class Watcher {
       const pending = await this.store.get(commitment);
       if (!pending) continue;
 
-      const hash = entry.hash ?? (tx["hash"] as string | undefined);
+      const hash = hashEarly;
       if (!hash) continue;
+      this.#seen.add(hash);
 
       found.push({
         xrplTxId: hash,
@@ -113,5 +125,10 @@ export class Watcher {
   /** Only consider ledgers at or after this index. */
   setStartLedger(index: number): void {
     this.#lastLedger = index;
+  }
+
+  /** Transactions already reported. Exposed for tests and diagnostics. */
+  get seenCount(): number {
+    return this.#seen.size;
   }
 }
