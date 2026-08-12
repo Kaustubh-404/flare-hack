@@ -39,3 +39,9 @@ tmp/
 
 # ─── Executor job state (contains no secrets, but is machine-local) ────────
 .executor-state/
+
+# ─── LATCH extension ──────────────────────────────────────────────────────
+extension/out/
+extension/cache/
+extension/ts/dist/
+extension/ts/node_modules/

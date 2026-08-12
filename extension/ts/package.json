@@ -1,0 +1,21 @@
+{
+  "name": "@latch/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LATCH — a confidential executor for Flare Smart Accounts, running inside a TEE",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "2.21.55"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}
