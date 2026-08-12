@@ -208,6 +208,48 @@ job 9EA8E3FB… created
 That first line is the verifier lagging the XRP Ledger, retried automatically —
 the exact case the retry classification exists for.
 
+## Signed on a phone, in Xaman
+
+The motion the product is actually for: open a link, read one sentence, slide
+to sign. No memo, no hash, no bridge, no FLR, no wallet switch.
+
+| | |
+|---|---|
+| XRPL payment | [`AE1F4945…7C39DFEA`](https://testnet.xrpl.org/transactions/AE1F4945B2119CA9F125F43F99209407B9748B0BDF2EF3D4102F13BD7C39DFEA) <!-- public tx hash, not-a-secret --> |
+| Signed by | `rDBiAgjPGzbzRpvwJETAbFjuZ4hmZrAEx` — a real Xaman account on a real iPhone |
+| Shown in the app | **"Deposit 10 mFXRP into MockVault"** |
+| FDC voting round | [1423151](https://coston2-systems-explorer.flare.network/voting-round/1423151?tab=fdc) |
+| Flare execution | [`0xd160a19f…17ae9d52`](https://coston2-explorer.flare.network/tx/0xd160a19fd52b261aa2f31a899afde2ac84c8b80ee520a27a57f41f3317ae9d52) <!-- public tx hash, not-a-secret --> |
+
+Verified on-chain:
+
+```
+MockVault.balanceOf(PA)      0 → 10000000     (10 mFXRP)
+MockFXRP.balanceOf(PA)       1000 → 990 mFXRP
+personal account nonce       0 → 1
+personal account             585 bytes — deployed by this mint, empty before
+MockFXRP.allowance(PA→vault) 0
+```
+
+That last line is the one that proves it. `approve(vault, 10)` set the allowance
+to 10; `deposit(10)` consumed exactly that. **Both calls ran, in order,
+atomically.** A vault balance alone could have come from a single call — a spent
+allowance could not.
+
+### What it took
+
+Three attempts, two of them our bugs:
+
+1. Rejected in the app by mistake — which incidentally proved the phone loop worked.
+2. Signed by a different account than the operation was prepared for. See
+   finding 7: `txjson.Account` is advisory. Cost 1.2 XRP, still at the Core
+   Vault and recoverable via the `0xE0` skip-memo path.
+3. Signed after restructuring to identify-first.
+
+The second was worth having. The fix was not a flag — it was recognising that a
+dApp *cannot* build a user operation before it knows who will sign, because both
+the personal account and the nonce derive from the payer.
+
 ### Why this batch needs `0xFE`
 
 The two-call batch ABI-encodes to **1024 bytes**. The inline `0xFF` variant
