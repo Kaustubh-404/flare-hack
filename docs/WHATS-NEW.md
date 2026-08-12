@@ -333,6 +333,40 @@ Reconciling the delta confirms both mints landed:
 finding 8. The recovery mechanism is sound; the race is a separate lesson, and
 a more valuable one.
 
+## Running the FCC stack: what actually cost time
+
+Recorded because none of it is in the guides, and all of it looked like
+something else while it was happening.
+
+1. **The Docker CLI can point at a socket that does not exist.** `docker
+   --version` works (it never contacts a daemon) while every real command hangs.
+   Here the default context was `desktop-linux` →
+   `~/.docker/desktop/docker.sock`, with a perfectly healthy system daemon at
+   `/var/run/docker.sock`. `docker context use default` was the whole fix. A
+   hang reads like a wedged daemon; it was a wrong address.
+
+2. **A TCP connect proves a listener, not the service you want.** Host port 3306
+   was already held by an unrelated MySQL on the machine, so our container's
+   traffic never arrived. Every check said "port open" because the connect
+   succeeded — but no MySQL handshake ever came, and the indexer hung silently
+   at database connect, *before its first log line*. Publishing on 3307 fixed
+   it instantly. Test the protocol handshake, not the socket.
+
+3. **`eth_getLogs` limits vary by an order of magnitude per endpoint.** The
+   public Flare RPC caps at **30 blocks**; Ankr serves **1000**. The indexer's
+   own example config suggests 1000–10000. Exceeding the cap does not degrade —
+   the request fails, the backoff exhausts, and the indexer restarts having
+   written nothing.
+
+4. **`history_drop` has a 2-day floor**, rejected at startup below that. Setting
+   `history_drop = 0` and an explicit `start_index` bypasses it, which matters
+   when a 2-day backfill against a rate-limited endpoint takes hours. Coston2
+   reward epochs are 21600 s and tee-proxy reaches back two of them, so a much
+   shorter window is sufficient.
+
+5. **`start_index` only applies to an empty database.** Otherwise the indexer
+   resumes after the last indexed block and silently ignores it.
+
 ## Verification
 
 Nothing above is asserted without a check that can be re-run:

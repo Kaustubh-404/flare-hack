@@ -1,6 +1,6 @@
 /** Server routing and wire format — docs/extension-contract.md §2, §4. */
 
-import { encodeAbiParameters } from "viem";
+import { keccak256 } from "viem";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { VERSION } from "../app/config.js";
@@ -8,15 +8,20 @@ import * as handlers from "../app/handlers.js";
 import { bytesToHex, hexToBytes, stringToBytes32Hex } from "../base/encoding.js";
 import { Server } from "../base/server.js";
 
-const GOODBYE_PARAMS = [
-  {
-    type: "tuple",
-    components: [
-      { name: "name", type: "string" },
-      { name: "reason", type: "string" },
-    ],
-  },
-] as const;
+const USER_OP = "0xdeadbeefcafebabe";
+const COMMITMENT = keccak256(USER_OP);
+
+/** A well-formed ARM payload. */
+const armBody = (over: Record<string, unknown> = {}) =>
+  Buffer.from(
+    JSON.stringify({
+      userOpData: USER_OP,
+      commitment: COMMITMENT,
+      trigger: { kind: "TIME", notBefore: Date.now() + 3_600_000 },
+      deadline: Date.now() + 7_200_000,
+      ...over,
+    }),
+  );
 
 let srv: Server;
 
@@ -34,8 +39,8 @@ function buildAction(opts: {
   actionId?: string;
 } = {}): string {
   const {
-    opType = "GREETING",
-    opCommand = "SAY_HELLO",
+    opType = "LATCH",
+    opCommand = "ARM",
     original = Buffer.alloc(0),
     actionId = `0x${"11".repeat(32)}`,
   } = opts;
@@ -130,25 +135,25 @@ describe("malformed input", () => {
 
 describe("ActionResult wire format", () => {
   it("returns the success shape", async () => {
-    const original = Buffer.from(JSON.stringify({ name: "World" }));
     const [status, body] = await srv.handleRequest(
-      "POST", "/action", buildAction({ original }),
+      "POST", "/action", buildAction({ original: armBody() }),
     );
     const r = body as Record<string, unknown>;
 
     expect(status).toBe(200);
     expect(r.status).toBe(1);
     expect(r.log).toBe("ok");
-    expect(r.opType).toBe(stringToBytes32Hex("GREETING"));
-    expect(r.opCommand).toBe(stringToBytes32Hex("SAY_HELLO"));
+    expect(r.opType).toBe(stringToBytes32Hex("LATCH"));
+    expect(r.opCommand).toBe(stringToBytes32Hex("ARM"));
     expect(String(r.data).startsWith("0x")).toBe(true);
   });
 
   it("sends version as a plain string, not bytes32", async () => {
     // Contract §4.4: tee-node declares `Version string`. The sign repo's
     // Python/TS ports hex-encode this and are wrong; this test pins it.
-    const original = Buffer.from(JSON.stringify({ name: "World" }));
-    const [, body] = await srv.handleRequest("POST", "/action", buildAction({ original }));
+    const [, body] = await srv.handleRequest(
+      "POST", "/action", buildAction({ original: armBody() }),
+    );
     const r = body as Record<string, unknown>;
 
     expect(r.version).toBe("0.1.0");
@@ -156,7 +161,8 @@ describe("ActionResult wire format", () => {
   });
 
   it("reports handler failure as HTTP 200 with status 0", async () => {
-    const original = Buffer.from(JSON.stringify({ name: "" }));
+    // A commitment that does not match the bytes — the handler must refuse.
+    const original = armBody({ commitment: keccak256("0x1234") });
     const [status, body] = await srv.handleRequest(
       "POST", "/action", buildAction({ original }),
     );
@@ -173,8 +179,9 @@ describe("ActionResult wire format", () => {
     // tee-node's ActionResult has no omitempty tags, so every field appears on
     // the wire regardless of value. Verified against Go by the conformance
     // fixtures in testdata/conformance/.
-    const original = Buffer.from(JSON.stringify({ name: "W" }));
-    const [, body] = await srv.handleRequest("POST", "/action", buildAction({ original }));
+    const [, body] = await srv.handleRequest(
+      "POST", "/action", buildAction({ original: armBody() }),
+    );
     const r = body as Record<string, unknown>;
 
     expect(Object.keys(r).sort()).toEqual([
@@ -186,9 +193,8 @@ describe("ActionResult wire format", () => {
 
   it("echoes id and submissionTag", async () => {
     const actionId = `0x${"ab".repeat(32)}`;
-    const original = Buffer.from(JSON.stringify({ name: "W" }));
     const [, body] = await srv.handleRequest(
-      "POST", "/action", buildAction({ original, actionId }),
+      "POST", "/action", buildAction({ original: armBody(), actionId }),
     );
     const r = body as Record<string, unknown>;
 
@@ -196,20 +202,20 @@ describe("ActionResult wire format", () => {
     expect(r.submissionTag).toBe("submit");
   });
 
-  it("handles the SAY_GOODBYE ABI path", async () => {
-    const original = Buffer.from(
-      hexToBytes(encodeAbiParameters(GOODBYE_PARAMS, [{ name: "World", reason: "done" }])),
-    );
+  it("routes a second command under the same op type", async () => {
+    await srv.handleRequest("POST", "/action", buildAction({ original: armBody() }));
+
+    const query = Buffer.from(JSON.stringify({ commitment: COMMITMENT }));
     const [, body] = await srv.handleRequest(
-      "POST", "/action", buildAction({ opCommand: "SAY_GOODBYE", original }),
+      "POST", "/action", buildAction({ opCommand: "STATUS", original: query }),
     );
     const r = body as Record<string, unknown>;
 
     expect(r.status).toBe(1);
-    expect(JSON.parse(Buffer.from(hexToBytes(r.data as string)).toString("utf-8"))).toEqual({
-      farewell: "Goodbye, World! Reason: done",
-      farewellNumber: 1,
-    });
+    const decoded = JSON.parse(Buffer.from(hexToBytes(r.data as string)).toString("utf-8"));
+    expect(decoded.state).toBe("armed");
+    // STATUS must never carry the operation itself.
+    expect(JSON.stringify(decoded)).not.toContain(USER_OP.slice(2));
   });
 });
 
@@ -225,13 +231,15 @@ describe("state wire format", () => {
   });
 
   it("reflects handler effects", async () => {
-    const original = Buffer.from(JSON.stringify({ name: "World" }));
-    await srv.handleRequest("POST", "/action", buildAction({ original }));
+    await srv.handleRequest("POST", "/action", buildAction({ original: armBody() }));
     const [, body] = await srv.handleRequest("GET", "/state", "");
     const state = (body as { state: Record<string, unknown> }).state;
 
-    expect(state.greetingCount).toBe(1);
-    expect(String(state.lastGreeting).startsWith("Hello, World!")).toBe(true);
+    expect(state.armed).toBe(1);
+    expect(state.armedTotal).toBe(1);
+    // /state is reachable through the public proxy — it must leak nothing.
+    expect(JSON.stringify(state)).not.toContain(USER_OP.slice(2));
+    expect(JSON.stringify(state)).not.toContain(COMMITMENT.slice(2));
   });
 });
 
@@ -239,14 +247,13 @@ describe("serialization", () => {
   it("does not wedge the queue when a handler throws", async () => {
     // A rejected handler must not block subsequent requests (contract §5).
     const boom = new Server(0, 0, VERSION, (f) => {
-      f.handle("GREETING", "SAY_HELLO", () => {
+      f.handle("LATCH", "ARM", () => {
         throw new Error("boom");
       });
     }, () => ({ ok: true }));
 
-    const original = Buffer.from(JSON.stringify({ name: "W" }));
     await expect(
-      boom.handleRequest("POST", "/action", buildAction({ original })),
+      boom.handleRequest("POST", "/action", buildAction({ original: armBody() })),
     ).rejects.toThrow("boom");
 
     // The queue must still be usable.
