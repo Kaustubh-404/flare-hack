@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ONESIG — pitch deck</title>
+<meta name="description" content="One XRPL signature, any Flare dApp. Five slides: the problem, the mechanism, what was built, and the on-chain evidence.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;450;600&display=swap" rel="stylesheet">
+<style>
+  /* ── the same two materials as the product: register and vault ───────── */
+  :root{
+    --paper:#EDEBE4;
+    --paper-2:#E3E0D7;
+    --card:#F6F4EF;
+    --ink:#14181E;
+    --muted:#59616E;
+    --faint:#8B93A0;
+    --wax:#A5382A;
+    --gild:#7A6110;
+    --rule:rgba(20,24,30,.13);
+    --rule-firm:rgba(20,24,30,.22);
+    --vault:#101720;
+    --vault-ink:#D2D8E2;
+    --vault-dim:#7E8A9C;
+    --vault-wax:#D9573F;
+    --vault-gild:#C9A227;
+
+    --display:'Fraunces',Georgia,'Iowan Old Style',serif;
+    --body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--body);line-height:1.6;overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── deck mechanics ──────────────────────────────────────── */
+  .deck{position:fixed;inset:0;overflow:hidden}
+  .track{display:flex;height:100%;width:max-content;transition:transform .52s cubic-bezier(.6,.02,.2,1);will-change:transform}
+  .slide{
+    width:100vw;flex:0 0 100vw;height:100%;padding:clamp(40px,5vh,72px) clamp(28px,5vw,80px) clamp(88px,11vh,110px);
+    display:flex;flex-direction:column;justify-content:center;overflow-y:auto;
+  }
+  .inner{width:100%;max-width:1060px;margin:0 auto}
+
+  .eyebrow{
+    font-family:var(--mono);font-size:clamp(10px,1.1vw,11.5px);letter-spacing:.2em;
+    text-transform:uppercase;color:var(--wax);margin:0 0 clamp(10px,1.6vh,18px);
+  }
+  h2{
+    font-family:var(--display);font-weight:600;font-size:clamp(26px,4.1vw,50px);
+    letter-spacing:-.025em;line-height:1.04;margin:0 0 clamp(12px,1.8vh,20px);
+    max-width:19ch;text-wrap:balance;font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  h2 em{font-style:italic;color:var(--wax)}
+  .lede{
+    font-size:clamp(14.5px,1.55vw,18px);color:var(--muted);max-width:66ch;
+    margin:0 0 clamp(18px,3vh,34px);
+  }
+  .lede b{color:var(--ink);font-weight:600}
+  .kicker{
+    border-left:2px solid var(--wax);padding:2px 0 2px 16px;
+    margin:clamp(16px,2.6vh,28px) 0 0;font-size:clamp(13.5px,1.4vw,16px);
+    color:var(--muted);max-width:64ch;
+  }
+  .kicker b{color:var(--ink);font-weight:600}
+
+  /* ── 1. the wall ─────────────────────────────────────────── */
+  .wall{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--rule-firm);border:1px solid var(--rule-firm)}
+  .brick{background:var(--card);padding:clamp(14px,2vh,22px)}
+  .brick h3{font-size:clamp(13.5px,1.35vw,15px);font-weight:600;margin:0 0 6px}
+  .brick p{font-size:clamp(12.5px,1.2vw,14px);color:var(--muted);margin:0}
+
+  /* ── 2. the comparison — the one bold moment ─────────────── */
+  .split{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(18px,2.4vw,34px);align-items:stretch}
+  .vaultbox{
+    background:var(--vault);color:var(--vault-ink);
+    padding:clamp(18px,2.6vw,30px);display:flex;gap:clamp(16px,2.2vw,28px);align-items:center;
+  }
+  .grid{display:grid;grid-template-columns:repeat(32,1fr);gap:1.5px;width:clamp(150px,17vw,230px);flex:none}
+  .cell{aspect-ratio:1;border-radius:1px;background:rgba(217,87,63,.42)}
+  .cap{font-family:var(--mono);font-size:clamp(9px,.85vw,10.5px);letter-spacing:.16em;text-transform:uppercase;color:var(--vault-dim);margin:0 0 5px}
+  .big{font-family:var(--display);font-size:clamp(22px,3.1vw,38px);line-height:1;letter-spacing:-.03em;margin:0;font-variation-settings:'SOFT' 0,'WONK' 1}
+  .big.a{color:var(--vault-wax)}
+  .big.b{color:var(--vault-gild)}
+  .strip{display:flex;gap:1.5px;flex-wrap:wrap;margin:9px 0 0;max-width:220px}
+  .sq{width:7px;height:7px;border-radius:1px;background:var(--vault-dim);opacity:.45}
+  .sq.c{background:var(--vault-wax);opacity:1}
+  .ratio{font-family:var(--mono);font-size:clamp(10.5px,1vw,12px);color:var(--vault-dim);margin:14px 0 0}
+  .ratio b{color:var(--vault-ink);font-weight:500}
+  .vstack{display:flex;flex-direction:column;gap:clamp(12px,1.8vh,20px);min-width:0}
+
+  .map{border:1px solid var(--rule-firm);background:var(--card);align-self:start;width:100%}
+  .maprow{display:grid;grid-template-columns:88px 58px 1fr;gap:10px;padding:clamp(8px,1.3vh,13px) clamp(12px,1.4vw,17px);border-bottom:1px solid var(--rule);align-items:baseline}
+  .maprow:last-child{border-bottom:0}
+  .maprow .f{font-family:var(--mono);font-size:clamp(11px,1.05vw,12.5px);color:var(--wax)}
+  .maprow .n{font-family:var(--mono);font-size:clamp(11px,1.05vw,12.5px);color:var(--muted);font-variant-numeric:tabular-nums}
+  .maprow .d{font-size:clamp(12px,1.15vw,13.5px);color:var(--muted)}
+  .maprow.total{background:var(--paper-2)}
+  .maprow.total .f,.maprow.total .n{color:var(--ink);font-weight:600}
+
+  /* ── 3. the flow ─────────────────────────────────────────── */
+  .flow{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule-firm);border:1px solid var(--rule-firm)}
+  .beat{display:grid;grid-template-columns:22px 1fr;gap:12px;background:var(--card);padding:clamp(11px,1.6vh,17px) clamp(13px,1.4vw,18px);align-items:start}
+  .beat .i{font-family:var(--mono);font-size:clamp(10.5px,1vw,11.5px);color:var(--wax);padding-top:3px;font-variant-numeric:tabular-nums}
+  .beat h3{font-size:clamp(13px,1.3vw,15px);font-weight:600;margin:0 0 3px}
+  .beat p{font-size:clamp(12px,1.15vw,13.5px);color:var(--muted);margin:0}
+  .beat code{font-family:var(--mono);font-size:.92em;color:var(--ink)}
+
+  /* ── 4. built ────────────────────────────────────────────── */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,44px)}
+  .col h3{
+    font-family:var(--mono);font-size:clamp(9.5px,.95vw,11px);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 12px;
+    padding-bottom:8px;border-bottom:1px solid var(--rule-firm);
+  }
+  .col ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:clamp(8px,1.3vh,13px)}
+  .col li{font-size:clamp(12.5px,1.25vw,14.5px);color:var(--muted);padding-left:14px;position:relative}
+  .col li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:5px;background:var(--wax);border-radius:1px}
+  .col li b{color:var(--ink);font-weight:600}
+  .col li code{font-family:var(--mono);font-size:.9em;color:var(--ink)}
+
+  /* ── 5. proof ────────────────────────────────────────────── */
+  .ledger{width:100%;border-collapse:collapse;font-size:clamp(12.5px,1.25vw,14.5px)}
+  .ledger th{
+    text-align:left;font-family:var(--mono);font-size:clamp(9px,.9vw,10.5px);letter-spacing:.15em;
+    text-transform:uppercase;color:var(--muted);font-weight:400;
+    padding:0 12px 8px 0;border-bottom:1px solid var(--rule-firm);
+  }
+  .ledger td{padding:clamp(8px,1.3vh,13px) 12px clamp(8px,1.3vh,13px) 0;border-bottom:1px solid var(--rule);vertical-align:top}
+  .ledger td:first-child{color:var(--muted);white-space:nowrap}
+  .ledger a{color:var(--wax);font-family:var(--mono);font-size:.92em;word-break:break-all}
+  .ledger .ok{color:var(--gild);font-family:var(--mono);font-size:.88em}
+
+  .counts{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule-firm);border:1px solid var(--rule-firm);margin-top:clamp(14px,2.2vh,24px)}
+  .count{background:var(--card);padding:clamp(11px,1.7vh,18px)}
+  .count .v{font-family:var(--display);font-size:clamp(21px,2.7vw,32px);line-height:1;letter-spacing:-.02em;font-variation-settings:'SOFT' 0,'WONK' 1}
+  .count .l{font-family:var(--mono);font-size:clamp(8.5px,.9vw,10.5px);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+
+  .limits{margin-top:clamp(14px,2.2vh,22px);font-size:clamp(12px,1.2vw,14px);color:var(--muted)}
+  .limits b{color:var(--ink);font-weight:600}
+
+  /* ── title slide ─────────────────────────────────────────── */
+  .mark{
+    font-family:var(--display);font-weight:700;font-size:clamp(44px,9vw,116px);
+    letter-spacing:-.035em;line-height:.94;margin:0 0 clamp(14px,2.4vh,26px);
+    font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  .mark i{font-style:normal;color:var(--wax)}
+  .claim{
+    font-family:var(--display);font-size:clamp(19px,2.9vw,34px);line-height:1.24;
+    margin:0 0 clamp(20px,3.4vh,38px);max-width:22ch;text-wrap:balance;
+    font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  .tags{display:flex;flex-wrap:wrap;gap:8px 24px;font-family:var(--mono);font-size:clamp(10.5px,1.1vw,12.5px);color:var(--muted);letter-spacing:.04em}
+  .tags b{color:var(--ink);font-weight:500}
+
+  /* ── controls ────────────────────────────────────────────── */
+  .bar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:0 clamp(20px,4vw,44px);height:clamp(58px,7.4vh,74px);
+    background:rgba(237,235,228,.94);backdrop-filter:blur(10px);
+    border-top:1px solid var(--rule-firm);
+  }
+  .where{font-family:var(--mono);font-size:clamp(10px,1.05vw,12px);color:var(--muted);letter-spacing:.05em}
+  .where b{color:var(--ink);font-weight:500}
+  .dots{display:flex;gap:7px}
+  .dot{
+    width:26px;height:3px;border:0;padding:0;cursor:pointer;background:var(--rule-firm);
+    transition:background .2s ease;
+  }
+  .dot.on{background:var(--wax)}
+  .dot:focus-visible{outline:2px solid var(--wax);outline-offset:3px}
+  .arrows{display:flex;gap:8px}
+  .nav{
+    font-family:var(--body);font-size:14px;font-weight:600;line-height:1;
+    width:38px;height:34px;border:1px solid var(--rule-firm);background:transparent;
+    color:var(--ink);cursor:pointer;transition:background .16s ease,border-color .16s ease;
+  }
+  .nav:hover:not(:disabled){background:var(--paper-2)}
+  .nav:disabled{opacity:.3;cursor:not-allowed}
+  .nav:focus-visible{outline:2px solid var(--wax);outline-offset:3px}
+
+  .rail{position:fixed;top:0;left:0;height:2px;background:var(--wax);z-index:31;transition:width .52s cubic-bezier(.6,.02,.2,1)}
+
+  @media (max-width:820px){
+    .split,.cols,.flow{grid-template-columns:1fr}
+    .vaultbox{flex-direction:column;align-items:flex-start}
+    .counts{grid-template-columns:repeat(2,1fr)}
+    .dots{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .track,.rail{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="rail" id="rail" style="width:20%"></div>
+
+<div class="deck">
+  <div class="track" id="track">
+
+    <!-- ── 0 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="Title">
+      <div class="inner">
+        <h1 class="mark">ONE<i>SIG</i></h1>
+        <p class="claim">One signature from an XRP wallet. Any Flare dApp.</p>
+        <div class="tags">
+          <span>Flare · <b>Coston2</b></span>
+          <span>XRPL <b>testnet</b></span>
+          <span>Smart Accounts · FAssets · <b>Data Connector</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 1 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="The problem">
+      <div class="inner">
+        <p class="eyebrow">The problem</p>
+        <h2>An XRP holder <em>cannot</em> use a Flare dApp.</h2>
+        <p class="lede">
+          Not "finds it hard". Cannot — without first becoming a different kind of user.
+          Flare's Smart Accounts already let an XRPL payment drive contract calls.
+          <b>What was missing is everything between a dApp's intent and a payment a wallet will sign.</b>
+        </p>
+        <div class="wall">
+          <div class="brick"><h3>A second wallet</h3><p>An EVM wallet, installed and funded, before anything can be signed.</p></div>
+          <div class="brick"><h3>A gas token</h3><p>FLR acquired from somewhere, held only to pay for the privilege of transacting.</p></div>
+          <div class="brick"><h3>A bridge</h3><p>Assets moved across, with the custody and timing risk that implies.</p></div>
+          <div class="brick"><h3>A new signature model</h3><p>EVM transactions to read and approve, in a format XRPL users have never seen.</p></div>
+        </div>
+        <p class="kicker">
+          Each is small. Together they are a wall between the largest retail holder base in
+          crypto and every application Flare has. <b>The user already has a wallet. It is simply the wrong one.</b>
+        </p>
+      </div>
+    </section>
+
+    <!-- ── 2 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="The solution">
+      <div class="inner">
+        <p class="eyebrow">The solution</p>
+        <h2>Put the intent in 42 bytes.</h2>
+        <p class="lede">
+          An XRPL payment can carry a memo, and a memo is small. A real operation — targets,
+          calldata, values, nonce, gas — is not. <b>So the ledger carries only a commitment, and
+          the operation travels off-ledger to an executor.</b>
+        </p>
+        <div class="split">
+          <div class="vaultbox">
+            <div class="grid" id="grid" role="img" aria-label="1024 cells, one per byte of the operation"></div>
+            <div class="vstack">
+              <div>
+                <p class="cap">What actually runs</p>
+                <p class="big a">1024 bytes</p>
+              </div>
+              <div>
+                <p class="cap">What the ledger records</p>
+                <p class="big b">42 bytes</p>
+                <div class="strip" id="strip"></div>
+              </div>
+              <p class="ratio">The ledger carries <b>one byte in 24</b>.</p>
+            </div>
+          </div>
+          <div class="map">
+            <div class="maprow"><span class="f">0xFE</span><span class="n">1 byte</span><span class="d">Opcode — committed execute</span></div>
+            <div class="maprow"><span class="f">walletId</span><span class="n">1 byte</span><span class="d">Which personal account acts</span></div>
+            <div class="maprow"><span class="f">feeUBA</span><span class="n">8 bytes</span><span class="d">What the executor is paid</span></div>
+            <div class="maprow"><span class="f">userOpHash</span><span class="n">32 bytes</span><span class="d">keccak256 — the commitment</span></div>
+            <div class="maprow total"><span class="f">total</span><span class="n">42 bytes</span><span class="d">Whatever the operation does</span></div>
+          </div>
+        </div>
+        <p class="kicker">
+          The commitment is what makes this safe rather than merely compact. An executor that
+          submits anything other than the exact committed bytes produces a different hash, and
+          <b>the contract rejects it</b>. The executor is paid to relay, never trusted to choose.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── 3 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="How it works">
+      <div class="inner">
+        <p class="eyebrow">How it works</p>
+        <h2>One payment, six steps, no further input.</h2>
+        <p class="lede">
+          The user signs once and stops participating. Everything after is machinery — and the
+          executor is a <b>separate actor</b> that has to notice the payment on its own.
+        </p>
+        <div class="flow">
+          <div class="beat"><span class="i">1</span><div><h3>A dApp describes what it wants</h3><p>Ordinary EVM calls — here <code>approve</code> then <code>deposit</code>. It never learns XRPL is involved.</p></div></div>
+          <div class="beat"><span class="i">2</span><div><h3>The SDK assembles and commits</h3><p>Calls become a <code>PackedUserOperation</code>; its hash goes into a 42-byte memo.</p></div></div>
+          <div class="beat"><span class="i">3</span><div><h3>The user signs one payment</h3><p>In Xaman it looks like any payment — an amount and a destination. Nothing unfamiliar.</p></div></div>
+          <div class="beat"><span class="i">4</span><div><h3>FAssets mints and dispatches</h3><p>Direct minting turns the payment into FXRP <em>and</em> forwards the instruction.</p></div></div>
+          <div class="beat"><span class="i">5</span><div><h3>The Data Connector proves it</h3><p>An <code>XRPPayment</code> attestation finalises in a voting round; a Merkle proof is fetched.</p></div></div>
+          <div class="beat"><span class="i">6</span><div><h3>The operation executes</h3><p><code>executeUserOp</code> checks the hash and runs the batch — from an account that did not exist when the payment was signed.</p></div></div>
+        </div>
+        <p class="kicker">
+          Step 5 is load-bearing. <b>Nobody has to trust the relay.</b> Flare verifies the XRPL
+          payment through its own oracle, and the commitment binds the relay to the approved operation.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── 4 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="What was built">
+      <div class="inner">
+        <p class="eyebrow">What was built</p>
+        <h2>An SDK, a relay, and the contracts to prove it.</h2>
+        <p class="lede">
+          Flare supplied the primitives. <b>ONESIG is the packaging that makes them reachable from
+          a dApp</b> — and filling the gaps found along the way.
+        </p>
+        <div class="cols">
+          <div class="col">
+            <h3>Built new</h3>
+            <ul>
+              <li><b>SDK</b> — encoders for all seven Smart Accounts memo opcodes, byte layouts transcribed from <code>MemoInstructions.sol</code>.</li>
+              <li><b>Executor</b> — the FDC attestation pipeline as a resumable state machine, so a crash mid-round recovers instead of losing the job.</li>
+              <li><b>Contracts</b> — <code>InstructionRegistry</code>, plus <code>Counter</code>, <code>MockFXRP</code> and <code>MockVault</code> as demo targets.</li>
+              <li><b>Demo surface</b> — Xaman sign-in, live pipeline, three explorer links that fill only once earned.</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>Integrated, not written</h3>
+            <ul>
+              <li><b>Flare Smart Accounts</b> — the <code>0xFE</code> instruction, <code>MasterAccountController</code>, <code>PersonalAccount.executeUserOp</code>.</li>
+              <li><b>FAssets v1.3</b> — direct minting, so one payment both mints FXRP and dispatches the memo.</li>
+              <li><b>Flare Data Connector</b> — the <code>XRPPayment</code> attestation type.</li>
+              <li><b>Contract Registry</b> — every address resolved at runtime, never copied from docs.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="kicker">
+          <b>Five of the seven memo opcodes are absent from the developer documentation.</b>
+          Every encoder asserts the exact length the contract's <code>require()</code> enforces — so a
+          malformed memo fails locally, instead of after a payment is signed and a nonce burned.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── 5 ─────────────────────────────────────────────── -->
+    <section class="slide" aria-label="Proof">
+      <div class="inner">
+        <p class="eyebrow">Proof</p>
+        <h2>It runs, and anyone can check.</h2>
+        <p class="lede">
+          One XRPL payment, signed once, executed a batch on Flare from a personal account that
+          <b>did not exist when the payment was signed</b>. Verified by reading the chain.
+        </p>
+        <table class="ledger">
+          <thead><tr><th>Stage</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td>XRPL payment</td><td><a href="https://testnet.xrpl.org/transactions/72641C7489F785DE2F5BF5A166522431E8888793446AC2E143AB46094A2BF14E">72641C74…4A2BF14E</a> <span class="ok">· 1.2 XRP to the Core Vault · 42-byte memo</span></td></tr><!-- public XRPL tx hash, not-a-secret -->
+            <tr><td>FDC voting round</td><td><a href="https://coston2-systems-explorer.flare.network/voting-round/1423089?tab=fdc">round 1423089</a> <span class="ok">· XRPPayment attestation finalised</span></td></tr>
+            <tr><td>Flare execution</td><td><a href="https://coston2-explorer.flare.network/tx/0xc4b609f7dc57bb2bb8b8e52519cc34f72be753f97521e5dd9d4fa6688cea9a35">0xc4b609f7…8cea9a35</a> <span class="ok">· Counter.count() 0 → 1</span></td></tr>
+            <tr><td>Batch execution</td><td><a href="https://coston2-explorer.flare.network/tx/0x9c80b62922bb340c59d7a35a17a5614f0e7b5cf84b8280b3f6c2e7b73e436a8b">0x9c80b629…436a8b</a> <span class="ok">· approve + deposit · block 34051314</span></td></tr>
+          </tbody>
+        </table>
+        <div class="counts">
+          <div class="count"><div class="v">54</div><div class="l">tests passing</div></div>
+          <div class="count"><div class="v">7</div><div class="l">opcodes encoded</div></div>
+          <div class="count"><div class="v">4</div><div class="l">contracts live</div></div>
+          <div class="count"><div class="v">1</div><div class="l">user signature</div></div>
+        </div>
+        <p class="limits">
+          <b>Stated plainly:</b> Coston2 and XRPL testnet, test tokens only.
+          <code>MockFXRP</code> and <code>MockVault</code> are demo targets — the FAssets and Data
+          Connector paths are real. The executor is a single instance we run; making it a
+          competitive market of relays is the obvious next step, and it is not built.
+        </p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<nav class="bar" aria-label="Slide navigation">
+  <p class="where"><b id="n">1</b> / 6 &nbsp;·&nbsp; <span id="label">ONESIG</span></p>
+  <div class="dots" id="dots"></div>
+  <div class="arrows">
+    <button class="nav" id="prev" aria-label="Previous slide">←</button>
+    <button class="nav" id="next" aria-label="Next slide">→</button>
+  </div>
+</nav>
+
+<script>
+  const LABELS = ["ONESIG","The problem","The solution","How it works","What was built","Proof"];
+  const N = LABELS.length;
+  const track = document.getElementById("track");
+  const rail  = document.getElementById("rail");
+  const dots  = document.getElementById("dots");
+  let at = 0;
+
+  dots.innerHTML = LABELS.map((l, i) =>
+    `<button class="dot${i ? "" : " on"}" data-i="${i}" aria-label="Go to ${l}"></button>`).join("");
+
+  function go(i, quiet) {
+    at = Math.max(0, Math.min(N - 1, i));
+    // The hash makes a slide addressable — useful for jumping straight to the
+    // proof slide when someone asks, and for reloading where you left off.
+    if (!quiet) history.replaceState(null, "", `#${at + 1}`);
+    track.style.transform = `translateX(-${at * 100}vw)`;
+    rail.style.width = `${((at + 1) / N) * 100}%`;
+    document.getElementById("n").textContent = at + 1;
+    document.getElementById("label").textContent = LABELS[at];
+    document.getElementById("prev").disabled = at === 0;
+    document.getElementById("next").disabled = at === N - 1;
+    dots.querySelectorAll(".dot").forEach((d, i2) => d.classList.toggle("on", i2 === at));
+  }
+
+  document.getElementById("prev").onclick = () => go(at - 1);
+  document.getElementById("next").onclick = () => go(at + 1);
+  dots.onclick = (e) => { const b = e.target.closest(".dot"); if (b) go(+b.dataset.i); };
+
+  addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); go(at + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(at - 1); }
+    else if (e.key === "Home") { e.preventDefault(); go(0); }
+    else if (e.key === "End") { e.preventDefault(); go(N - 1); }
+  });
+
+  // One cell per byte of the demo batch, one square per byte of the memo —
+  // the same scale drawn twice, which is the whole argument of slide three.
+  document.getElementById("grid").innerHTML =
+    Array.from({ length: 1024 }, () => '<i class="cell"></i>').join("");
+  document.getElementById("strip").innerHTML =
+    Array.from({ length: 42 }, (_, i) => `<i class="sq${i > 9 ? " c" : ""}"></i>`).join("");
+
+  // Land on the opening slide without animating into it — a deck that slides
+  // sideways every time it loads reads as a bug, and deep-linking to #5 should
+  // arrive there rather than travel there.
+  const start = parseInt(location.hash.slice(1), 10);
+  track.style.transition = "none";
+  go(Number.isFinite(start) && start >= 1 && start <= N ? start - 1 : 0, true);
+  requestAnimationFrame(() => { track.style.transition = ""; });
+  addEventListener("hashchange", () => {
+    const h = parseInt(location.hash.slice(1), 10);
+    if (Number.isFinite(h) && h - 1 !== at) go(h - 1, true);
+  });
+</script>
+</body>
+</html>

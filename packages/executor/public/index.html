@@ -417,8 +417,11 @@ function drawGrid(byteLen, animate, memoLen) {
     `<b>The ledger carries one byte in ${ratio}.</b>`;
 }
 
-function drawSteps(current) {
-  const at = STEPS.findIndex(([k]) => k === current);
+function drawSteps(current, complete) {
+  // "executed" is both the last step and a finished state. Without `complete`
+  // the final row would sit on "working" forever, next to a proof link showing
+  // the transaction had already landed.
+  const at = complete ? STEPS.length : STEPS.findIndex(([k]) => k === current);
   $("steps").classList.add("on");
   $("steps").innerHTML = STEPS.map(([, label], i) => {
     const c = i < at ? "was" : i === at ? "now" : "";
@@ -492,6 +495,7 @@ async function watch(txid, p) {
     if (s.state !== last) { last = s.state; drawSteps(s.state); }
 
     if (s.state === "executed") {
+      drawSteps("executed", true);
       if (s.flareTxHash) proofLink("pFlare", FLARE_TX(s.flareTxHash), s.flareTxHash.slice(0, 20) + "…");
       $("opGrid").classList.remove("sealed");
       $("opGrid").classList.add("opened");
