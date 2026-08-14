@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ONESIG — one XRPL signature, any Flare dApp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap" rel="stylesheet">
+<style>
+  /* ──────────────────────────────────────────────────────────────────────
+     Two materials, one seam.
+
+     The left is a public register: printed, plain, small. The right is a
+     sealed vault: dark, dense, unreadable. The whole argument of ONESIG is
+     the size difference between them, so the page is built to let you see
+     it rather than be told it.
+     ────────────────────────────────────────────────────────────────────── */
+  :root {
+    --paper:#E9E7E0;      /* register stock */
+    --paper-2:#DEDCD3;
+    --ink:#14181E;        /* register ink */
+    --ink-soft:#5A6270;
+    --vault:#0C1016;      /* sealed side */
+    --vault-2:#141A23;
+    --vault-3:#1C2531;
+    --vault-ink:#C9D1DE;
+    --vault-dim:#6C788C;
+    --wax:#B8402F;        /* the seal — the one thing that crosses */
+    --gild:#C9A227;       /* confirmed on Flare */
+    --rule:rgba(20,24,30,.14);
+    --rule-v:rgba(201,209,222,.13);
+
+    --display:'Fraunces',Georgia,serif;
+    --body:'IBM Plex Sans',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--vault);color:var(--vault-ink);
+    font-family:var(--body);font-size:15px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1140px;margin:0 auto;padding:0 28px}
+
+  /* ── header ───────────────────────────────────────────────── */
+  header{
+    border-bottom:1px solid var(--rule-v);position:sticky;top:0;z-index:20;
+    background:rgba(12,16,22,.93);backdrop-filter:blur(10px);
+  }
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0}
+  .mark{
+    font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:-.01em;
+    font-variation-settings:'SOFT' 0,'WONK' 1;color:var(--paper);
+  }
+  .mark i{font-style:normal;color:var(--wax)}
+  .live{
+    font-family:var(--mono);font-size:11px;color:var(--vault-dim);
+    display:flex;align-items:center;gap:8px;letter-spacing:.02em;
+  }
+  .led{width:6px;height:6px;border-radius:50%;background:#3A4454;flex:none}
+  .led.on{background:var(--gild);box-shadow:0 0 0 3px rgba(201,162,39,.16)}
+
+  /* ── hero: the seam ───────────────────────────────────────── */
+  .seam{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;min-height:clamp(400px,52vh,540px)}
+  .register{
+    background:var(--paper);color:var(--ink);
+    padding:clamp(36px,5vw,64px) clamp(28px,4vw,56px);
+    display:flex;flex-direction:column;justify-content:center;
+    position:relative;
+  }
+  /* faint ruled lines — register stock, not decoration for its own sake */
+  .register::before{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(to bottom,transparent 0 31px,var(--rule) 31px 32px);
+  }
+  .register > *{position:relative}
+  .eyebrow{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-soft);margin:0 0 18px;
+  }
+  h1{
+    font-family:var(--display);font-weight:600;font-size:clamp(31px,4.4vw,50px);
+    line-height:1.02;letter-spacing:-.022em;margin:0 0 20px;max-width:15ch;
+    font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  h1 em{font-style:italic;color:var(--wax);font-variation-settings:'SOFT' 8,'WONK' 1}
+  .lede{color:var(--ink-soft);max-width:44ch;margin:0;font-size:15.5px}
+  .lede b{color:var(--ink);font-weight:600}
+
+  .vaultside{
+    background:var(--vault-2);padding:clamp(32px,4vw,48px) clamp(24px,3.4vw,44px);
+    display:flex;flex-direction:column;justify-content:center;gap:18px;
+    border-left:1px solid var(--rule-v);
+  }
+  .vlabel{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--vault-dim);display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  }
+  .vlabel b{color:var(--wax);font-weight:500}
+
+  /* ── the signature element: byte grids at true scale ──────── */
+  /* 32 columns: the demo batch is 1024 bytes, so the sealed operation reads as
+     a square block rather than an arbitrary rectangle. */
+  .grid{display:grid;grid-template-columns:repeat(32,1fr);gap:2px;max-width:420px}
+  .cell{aspect-ratio:1;border-radius:1px;background:var(--vault-3)}
+  .grid.sealed .cell{background:rgba(184,64,47,.30)}
+  .grid.sealed.live-seal .cell{animation:settle .5s ease both}
+  @keyframes settle{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+  .grid.opened .cell{background:rgba(201,162,39,.34)}
+  .gridnote{font-family:var(--mono);font-size:11px;color:var(--vault-dim);margin:0}
+  .gridnote b{color:var(--vault-ink);font-weight:500}
+
+  /* the 42 that cross, on the paper side */
+  .ribbon{display:flex;gap:3px;flex-wrap:wrap;margin:22px 0 10px}
+  .bcell{
+    width:11px;height:11px;border-radius:1px;background:var(--ink);opacity:.16;
+  }
+  .bcell.op{opacity:.85}
+  .bcell.wal{opacity:.55}
+  .bcell.fee{opacity:.34}
+  .bcell.com{background:var(--wax);opacity:1}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .swatch{width:9px;height:9px;border-radius:1px;background:var(--ink)}
+  .swatch.com{background:var(--wax)}
+  .ratio{font-size:13.5px;color:var(--ink-soft);margin:18px 0 0;max-width:40ch}
+  .ratio b{color:var(--ink);font-weight:600}
+
+  /* ── generic section furniture ────────────────────────────── */
+  main{background:var(--vault)}
+  section{padding:clamp(44px,6vw,76px) 0;border-bottom:1px solid var(--rule-v)}
+  .sec{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--vault-dim);margin:0 0 22px;
+  }
+  h2.head{
+    font-family:var(--display);font-weight:600;font-size:clamp(23px,2.9vw,32px);
+    letter-spacing:-.02em;margin:0 0 14px;color:var(--paper);
+    font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  .sub{color:var(--vault-dim);max-width:58ch;margin:0 0 26px}
+
+  /* ── action ───────────────────────────────────────────────── */
+  .act{
+    background:var(--paper);color:var(--ink);border-radius:3px;
+    padding:clamp(24px,3vw,34px);
+  }
+  .btn{
+    font-family:var(--body);font-weight:600;font-size:14.5px;
+    background:var(--wax);color:#FCF6F4;border:0;border-radius:2px;
+    padding:12px 22px;cursor:pointer;transition:filter .14s ease,transform .1s ease;
+  }
+  .btn:hover:not(:disabled){filter:brightness(1.09)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.plain{background:transparent;color:var(--ink);border:1px solid rgba(20,24,30,.28)}
+  .btn:focus-visible,a:focus-visible{outline:2px solid var(--wax);outline-offset:3px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  .batch{display:flex;flex-direction:column;gap:1px;background:var(--rule);border-radius:2px;overflow:hidden;margin-bottom:16px}
+  .bitem{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;background:var(--paper-2);padding:12px 14px;font-size:14px}
+  .bitem .n{font-family:var(--mono);font-size:11px;color:var(--wax);padding-top:3px}
+  .bitem b{font-weight:600}
+  .bitem em{font-family:var(--mono);font-style:normal;font-size:11px;color:var(--ink-soft);display:block;margin-top:2px}
+  .paying{font-size:13.5px;color:var(--ink-soft);margin:0 0 18px;max-width:52ch}
+  .paying b{color:var(--ink);font-weight:600}
+
+  .qr{display:none;gap:26px;align-items:flex-start;flex-wrap:wrap}
+  .qr.on{display:flex}
+  .qr img{width:172px;height:172px;background:#fff;padding:9px;border-radius:2px;flex:none}
+  .qr h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+  .qr p{color:var(--ink-soft);font-size:13.5px;margin:0 0 12px;max-width:40ch}
+  .asks{
+    font-family:var(--mono);font-size:12.5px;color:var(--ink);
+    border-left:2px solid var(--wax);padding:6px 0 6px 12px;margin-bottom:12px;
+  }
+
+  /* ── pipeline ─────────────────────────────────────────────── */
+  .steps{display:none;margin-top:22px;border-top:1px solid var(--rule);padding-top:6px}
+  .steps.on{display:block}
+  .step{
+    display:grid;grid-template-columns:16px 1fr auto;gap:14px;align-items:center;
+    padding:11px 0;border-bottom:1px solid var(--rule);font-size:14px;color:rgba(20,24,30,.42);
+  }
+  .step:last-child{border-bottom:0}
+  .step .pip{width:8px;height:8px;border-radius:50%;background:rgba(20,24,30,.2);justify-self:center}
+  .step.now{color:var(--ink)}
+  .step.now .pip{background:var(--wax);animation:beat 1.3s ease-in-out infinite}
+  .step.was{color:var(--ink)}
+  .step.was .pip{background:var(--gild)}
+  .step .t{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  @keyframes beat{0%,100%{opacity:1}50%{opacity:.28}}
+
+  /* ── proofs ───────────────────────────────────────────────── */
+  .proofs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--rule-v);margin-top:2px}
+  .proof{background:var(--vault-2);padding:18px 20px;min-height:96px}
+  .proof .w{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--vault-dim);margin:0 0 8px}
+  .proof a,.proof .none{font-family:var(--mono);font-size:12.5px;word-break:break-all;line-height:1.5}
+  .proof a{color:var(--gild)}
+  .proof .none{color:#3D4757}
+
+  /* ── result ───────────────────────────────────────────────── */
+  .result{display:none;margin-top:24px;border-top:1px solid var(--rule);padding-top:22px}
+  .result.on{display:block}
+  .bal{font-family:var(--display);font-weight:600;font-size:clamp(24px,3vw,34px);letter-spacing:-.02em}
+  .bal .a{color:rgba(20,24,30,.38)}
+  .bal .arrow{color:var(--wax);margin:0 10px}
+  .bal .b{color:var(--ink)}
+
+  .calls{display:none;flex-direction:column;gap:9px;margin-top:16px}
+  .calls.on{display:flex}
+  .call{
+    font-family:var(--mono);font-size:12.5px;border:1px solid var(--rule-v);
+    border-radius:2px;padding:11px 13px;background:var(--vault-2);color:var(--vault-ink);
+  }
+  .call b{color:var(--gild);font-weight:500}
+  .call span{color:var(--vault-dim);display:block;margin-top:3px;word-break:break-all}
+
+  pre{
+    font-family:var(--mono);font-size:12.5px;line-height:1.7;background:var(--vault-2);
+    border:1px solid var(--rule-v);border-radius:3px;padding:22px;overflow-x:auto;margin:0;
+    color:var(--vault-ink);
+  }
+  .k{color:var(--wax)} .s{color:var(--gild)} .c{color:#4B5769} .f{color:#7FA8C9}
+
+  .err{color:#C0392B;font-family:var(--mono);font-size:12.5px;margin-top:12px;display:none}
+  .err.on{display:block}
+
+  footer{padding:30px 0 64px;color:#4B5769;font-size:12.5px}
+  footer b{color:var(--vault-dim);font-weight:400}
+
+  @media (max-width:900px){
+    .seam{grid-template-columns:1fr}
+    .vaultside{border-left:0;border-top:1px solid var(--rule-v)}
+    .grid{grid-template-columns:repeat(26,1fr)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="mark">ONE<i>SIG</i></div>
+    <div class="live"><span class="led" id="led"></span><span id="liveText">connecting</span></div>
+  </div>
+</header>
+
+<!-- ── the seam ────────────────────────────────────────────────── -->
+<div class="seam">
+  <div class="register">
+    <p class="eyebrow">What the XRP Ledger records</p>
+    <h1>One signature from a wallet you <em>already have</em>.</h1>
+    <p class="lede">
+      A dApp on Flare describes what it wants. The user signs a single XRPL payment —
+      no bridge, no gas token, no second wallet. <b>The ledger carries 42 bytes.</b>
+    </p>
+
+    <div class="ribbon" id="ribbon"></div>
+    <div class="legend">
+      <span><i class="swatch"></i>opcode · wallet · fee</span>
+      <span><i class="swatch com"></i>commitment, 32 bytes</span>
+    </div>
+    <p class="ratio" id="ratio">Every square to the right is a byte of the operation.
+      <b>The ledger carries one byte in 24.</b></p>
+  </div>
+
+  <div class="vaultside">
+    <div class="vlabel"><span>What actually runs</span><b id="opBytes">—</b></div>
+    <div class="grid sealed" id="opGrid" role="img" aria-label="The operation, sealed until it executes"></div>
+    <p class="gridnote" id="gridNote">
+      <b>Sealed.</b> Every cell is one byte of the operation. It travels to the executor,
+      never to the XRP Ledger — which sees only its hash.
+    </p>
+  </div>
+</div>
+
+<main>
+<div class="wrap">
+
+  <!-- ── run it ─────────────────────────────────────────────── -->
+  <section>
+    <p class="sec">Run it</p>
+    <h2 class="head">Sign once. Watch two calls land on Flare.</h2>
+    <p class="sub">
+      The batch is <b>approve</b> then <b>deposit</b> — the thing one signature makes possible
+      and a plain bridge does not. The executor is a separate actor: it notices the payment
+      and finishes the job on its own.
+    </p>
+
+    <div class="act">
+      <div id="startRow">
+        <div class="batch">
+          <div class="bitem"><span class="n">1</span><div><b>approve</b> MockVault to move 10 mFXRP<em>0xA2c647c0…52ED</em></div></div>
+          <div class="bitem"><span class="n">2</span><div><b>deposit</b> 10 mFXRP into the vault<em>0x64b89db1…b444</em></div></div>
+        </div>
+        <p class="paying">One XRPL payment of <b>1.2 XRP</b> to the FAssets Core Vault. That mints the FXRP and carries the commitment.</p>
+        <div class="row">
+          <button class="btn" id="startBtn">Sign in with Xaman</button>
+          <button class="btn plain" id="skipBtn">Use a known account</button>
+        </div>
+      </div>
+
+      <div class="qr" id="qrBox">
+        <img id="qrImg" alt="Scan with Xaman" width="172" height="172">
+        <div>
+          <h3 id="qrTitle">Scan with Xaman</h3>
+          <p id="qrSub">Open the camera in Xaman, or tap the link on this device.</p>
+          <div class="asks" id="qrAsks"></div>
+          <a id="qrLink" href="#" target="_blank" rel="noopener">Open on this device →</a>
+        </div>
+      </div>
+
+      <div class="steps" id="steps"></div>
+      <p class="err" id="err"></p>
+
+      <div class="result" id="result">
+        <p class="sec" style="color:var(--ink-soft)">MockVault balance</p>
+        <div class="bal"><span class="a" id="balA">0</span><span class="arrow">→</span><span class="b" id="balB">0</span> mFXRP</div>
+        <p style="color:var(--ink-soft);font-size:13.5px;margin:10px 0 0" id="resultNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── proofs ─────────────────────────────────────────────── -->
+  <section>
+    <p class="sec">Proof, as it is earned</p>
+    <h2 class="head">Three chains of evidence.</h2>
+    <p class="sub">Each link appears only once that step has actually happened. Nothing here is pre-filled.</p>
+    <div class="proofs">
+      <div class="proof">
+        <p class="w">XRPL payment</p>
+        <div id="pXrpl"><span class="none">not yet signed</span></div>
+      </div>
+      <div class="proof">
+        <p class="w">FDC voting round</p>
+        <div id="pFdc"><span class="none">not yet attested</span></div>
+      </div>
+      <div class="proof">
+        <p class="w">Flare execution</p>
+        <div id="pFlare"><span class="none">not yet executed</span></div>
+      </div>
+    </div>
+    <div class="calls" id="calls"></div>
+  </section>
+
+  <!-- ── integration ────────────────────────────────────────── -->
+  <section style="border-bottom:0">
+    <p class="sec">The whole integration</p>
+    <h2 class="head">A dApp that has never heard of the XRP Ledger.</h2>
+    <pre><span class="k">const</span> req = <span class="k">await</span> onesig.<span class="f">prepare</span>({
+  xrplAddress,
+  calls: [
+    { target: fxrp,  data: <span class="f">encodeFunctionData</span>({ abi, functionName: <span class="s">"approve"</span>, args: [vault, amount] }) },
+    { target: vault, data: <span class="f">encodeFunctionData</span>({ abi, functionName: <span class="s">"deposit"</span>, args: [amount] }) },
+  ],
+  label: <span class="s">"Deposit 10 mFXRP into MockVault"</span>,
+  netMintUBA: <span class="s">1_000_000n</span>,
+});
+
+<span class="c">// req.xrplPayment is signable. The user never sees a memo.</span></pre>
+  </section>
+
+  <footer>
+    Coston2 · XRPL testnet · test tokens only.
+    <b>The user operation travels off-ledger to the executor; the XRP Ledger carries a 32-byte commitment.</b>
+  </footer>
+</div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = (p, o) => fetch(p, o).then(r => r.json());
+
+const XRPL_TX  = (h) => `https://testnet.xrpl.org/transactions/${h}`;
+const FDC_ROUND = (r) => `https://coston2-systems-explorer.flare.network/voting-round/${r}?tab=fdc`;
+const FLARE_TX = (h) => `https://coston2-explorer.flare.network/tx/${h}`;
+
+const STEPS = [
+  ["observed",          "Executor sees the payment"],
+  ["request_prepared",  "FDC attestation prepared"],
+  ["request_submitted", "Attestation submitted"],
+  ["round_finalized",   "Voting round finalised"],
+  ["proof_fetched",     "Merkle proof retrieved"],
+  ["executed",          "Calls executed on Flare"],
+];
+
+let S = { prepared: null, txid: null, balA: 0 };
+
+const live = (t, on) => { $("liveText").textContent = t; $("led").classList.toggle("on", !!on); };
+const fail = (m) => { $("err").textContent = m; $("err").classList.add("on"); };
+
+/** 42 cells, segmented by what each byte actually is. */
+function drawRibbon(memoHex) {
+  const n = memoHex ? memoHex.length / 2 : 42;
+  const cls = (i) => i === 0 ? "op" : i === 1 ? "wal" : i < 10 ? "fee" : "com";
+  $("ribbon").innerHTML = Array.from({ length: n }, (_, i) =>
+    `<i class="bcell ${cls(i)}"></i>`).join("");
+}
+
+/** One cell per byte of the operation — the scale IS the argument. */
+function drawGrid(byteLen, animate, memoLen) {
+  $("opBytes").textContent = `${byteLen} bytes`;
+  const g = $("opGrid");
+  g.innerHTML = Array.from({ length: byteLen }, (_, i) =>
+    `<i class="cell" style="animation-delay:${(i % 32) * 6 + Math.floor(i / 32) * 14}ms"></i>`).join("");
+  if (animate) { g.classList.add("live-seal"); setTimeout(() => g.classList.remove("live-seal"), 1400); }
+
+  // Stated as a ratio because the raw byte counts mean little on their own.
+  const ratio = Math.round(byteLen / (memoLen || 42));
+  $("ratio").innerHTML =
+    `Every square to the right is a byte of the operation. ` +
+    `<b>The ledger carries one byte in ${ratio}.</b>`;
+}
+
+function drawSteps(current, complete) {
+  // "executed" is both the last step and a finished state. Without `complete`
+  // the final row would sit on "working" forever, next to a proof link showing
+  // the transaction had already landed.
+  const at = complete ? STEPS.length : STEPS.findIndex(([k]) => k === current);
+  $("steps").classList.add("on");
+  $("steps").innerHTML = STEPS.map(([, label], i) => {
+    const c = i < at ? "was" : i === at ? "now" : "";
+    const t = i < at ? "done" : i === at ? "working" : "";
+    return `<div class="step ${c}"><span class="pip"></span><span>${label}</span><span class="t">${t}</span></div>`;
+  }).join("");
+}
+
+const proofLink = (el, href, text) => { $(el).innerHTML = `<a href="${href}" target="_blank" rel="noopener">${text}</a>`; };
+
+async function pollSign(uuid, done) {
+  for (;;) {
+    await new Promise(r => setTimeout(r, 2500));
+    const s = await api(`/xaman/${uuid}`);
+    if (s.signed) return done(s);
+    if (s.expired) return fail("Sign request expired. Reload to try again.");
+    if (s.resolved && !s.signed) return fail("Rejected in Xaman. Nothing was sent.");
+  }
+}
+
+async function prepareFor(account) {
+  live(account.slice(0, 12) + "…", true);
+  $("qrBox").classList.remove("on");
+
+  const res = await api("/prepare", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ xrplAddress: account }),
+  });
+  if (res.error) return fail(res.error);
+
+  const p = res.prepared;
+  S.prepared = p;
+  drawRibbon(p.memoHex);
+  drawGrid((p.userOpData.length - 2) / 2, true, p.memoHex.length / 2);
+  $("gridNote").innerHTML =
+    "<b>Sealed.</b> Every cell is one byte of the operation. It travels to the executor, " +
+    "never to the XRP Ledger — which sees only its hash.";
+
+  const bal = await api(`/vault?account=${p.personalAccount}`);
+  S.balA = Number(bal.balance || 0) / 1e6;
+  $("balA").textContent = S.balA;
+
+  if (!res.sign) return fail("Xaman is not configured on this executor.");
+
+  $("qrTitle").textContent = "Scan to sign";
+  $("qrSub").textContent = "One payment. Xaman fills in the account, fee and sequence.";
+  $("qrAsks").textContent = p.label;
+  $("qrImg").src = res.sign.qr;
+  $("qrLink").href = res.sign.next;
+  $("qrBox").classList.add("on");
+  $("startRow").style.display = "none";
+
+  pollSign(res.sign.uuid, (s) => {
+    S.txid = s.txid;
+    $("qrBox").classList.remove("on");
+    proofLink("pXrpl", XRPL_TX(s.txid), s.txid.slice(0, 20) + "…");
+    drawSteps("observed");
+    watch(s.txid, p);
+  });
+}
+
+async function watch(txid, p) {
+  let last = "", round = null;
+  for (;;) {
+    await new Promise(r => setTimeout(r, 5000));
+    let s;
+    try { s = await api(`/status?tx=${txid}`); } catch { continue; }
+    if (s.error) continue;
+
+    if (s.roundId && s.roundId !== round) { round = s.roundId; proofLink("pFdc", FDC_ROUND(round), `round ${round}`); }
+    if (s.state !== last) { last = s.state; drawSteps(s.state); }
+
+    if (s.state === "executed") {
+      drawSteps("executed", true);
+      if (s.flareTxHash) proofLink("pFlare", FLARE_TX(s.flareTxHash), s.flareTxHash.slice(0, 20) + "…");
+      $("opGrid").classList.remove("sealed");
+      $("opGrid").classList.add("opened");
+      $("gridNote").innerHTML = "<b>Opened.</b> The operation ran on Flare. Its bytes were never on the XRP Ledger.";
+      $("calls").innerHTML = p.calls.map((c, i) =>
+        `<div class="call"><b>${i + 1}. ${c.label}</b><span>${c.target}</span></div>`).join("");
+      $("calls").classList.add("on");
+
+      const bal = await api(`/vault?account=${p.personalAccount}`);
+      $("balB").textContent = Number(bal.balance || 0) / 1e6;
+      $("result").classList.add("on");
+      $("resultNote").textContent =
+        "Two calls, one signature. The approve was consumed by the deposit — both ran, in order.";
+      live("executed", true);
+      return;
+    }
+    if (s.state === "failed") return fail(s.lastError || "Execution failed.");
+  }
+}
+
+$("startBtn").onclick = async () => {
+  $("startBtn").disabled = true;
+  const r = await api("/signin", { method: "POST" });
+  if (r.error) { $("startBtn").disabled = false; return fail(r.error); }
+  $("qrTitle").textContent = "Scan to sign in";
+  $("qrSub").textContent = "Free — a sign-in is not a ledger transaction. It tells the dApp which account to build for.";
+  $("qrAsks").textContent = "Sign in to ONESIG";
+  $("qrImg").src = r.qr;
+  $("qrLink").href = r.next;
+  $("qrBox").classList.add("on");
+  pollSign(r.uuid, (s) => prepareFor(s.account));
+};
+
+$("skipBtn").onclick = () => {
+  const a = prompt("XRPL account (r…)");
+  if (a) prepareFor(a.trim());
+};
+
+// The demo batch — approve + deposit — encodes to exactly 1024 bytes, so the
+// grid is drawn at true scale before anything is signed and only re-drawn if a
+// prepare returns something different. Nothing here is a round number chosen to
+// look good.
+drawRibbon(null);
+drawGrid(1024, false, 42);
+
+api("/config")
+  .then(c => live(c.xamanConfigured ? "executor ready" : "executor up · Xaman not configured", true))
+  .catch(() => live("executor unreachable", false));
+</script>
+</body>
+</html>
