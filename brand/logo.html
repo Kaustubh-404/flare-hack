@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:480px;height:480px;overflow:hidden}
+  body{
+    background:#EDEBE4;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:30px;
+  }
+  .mark{
+    font-family:'Fraunces',Georgia,serif;font-weight:700;
+    font-size:152px;line-height:.86;letter-spacing:-.045em;
+    color:#14181E;text-align:center;
+    font-variation-settings:'SOFT' 0,'WONK' 1;
+  }
+  .mark span{color:#A5382A;display:block}
+  /* 42 cells: the memo, at the scale the ledger actually carries it */
+  .strip{display:flex;gap:2px}
+  .c{width:7px;height:7px;background:#14181E;opacity:.22}
+  .c.w{background:#A5382A;opacity:1}
+</style></head><body>
+  <div class="mark">ONE<span>SIG</span></div>
+  <div class="strip" id="s"></div>
+<script>
+  document.getElementById("s").innerHTML =
+    Array.from({length:42},(_,i)=>`<i class="c${i>9?" w":""}"></i>`).join("");
+</script>
+</body></html>
