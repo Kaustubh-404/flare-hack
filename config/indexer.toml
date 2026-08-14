@@ -12,20 +12,43 @@
 #   .indexer/flare-cchain-indexer --config config/indexer.toml
 
 [indexer]
-mode = "full"
-start_index = 33934789
+# "fsp", not "full" — this is the single most important line in the file.
+#
+# "full" is a generic C-chain indexer: it crawls every block from start_index
+# forward. tee-proxy needs roughly two reward epochs of signing-policy history,
+# which on Coston2 (21600 s epochs, ~1.8 s blocks) is ~24000 blocks — a crawl
+# that took over an hour here against a public RPC, and that has to be redone
+# from scratch every time the database is lost.
+#
+# "fsp" mode indexes only the recent blocks needed for FSP operation, and
+# backfills the FSP *metadata* — signing policies, voter registrations, reward
+# offers — independently, from two reward epochs back. That is exactly the
+# proxy's requirement, obtained in minutes instead of an hour, and it stays
+# correct when reward epoch starts are delayed because retention follows the
+# on-chain epoch start data rather than a fixed block count.
+#
+# In this mode start_index and db.history_drop are ignored, and the FSP
+# transactions/logs are hardcoded — the collect_logs entries below are merged
+# with them, not a replacement.
+mode = "fsp"
+# 0 is the recommended provider setting: fully index only the last ~15 minutes
+# of blocks, and let the metadata backfill supply the two epochs of history.
+history_epochs = 0
 stop_index = 0
 # Measured per endpoint, not guessed. The public Flare RPC caps eth_getLogs at
 # 30 blocks — a wider request fails with "requested too many blocks … maximum is
 # set to 30", the backoff exhausts, and the indexer restarts having written
-# nothing. At 30 the backfill ran at ~500 blocks per 100 s: about six hours.
+# nothing.
 #
-# Ankr serves 1000, which is 33x fewer round trips and turns the same backfill
-# into minutes. (Ankr publicly offered RPC to Summer Signal participants.)
+# Ankr serves 1000, which is 33x fewer round trips.
 log_range = 1000
-batch_size = 1000
-# Public endpoint, so not unlimited — but the backfill is one-off and the
-# steady state afterwards is a handful of calls per block.
+# batch_size is the DB commit granularity, NOT the getLogs width. At 1000 the
+# indexer commits every 1000 blocks, which at ~1.8 s/block is one commit every
+# 30 minutes; tee-proxy reads the committed head, sees a half-hour sawtooth, and
+# refuses to start with "Database out of sync". 20 commits roughly every 36 s.
+#
+# This costs nothing in fsp mode, where there is no long backfill to slow down.
+batch_size = 20
 rpc_concurrency = 12
 new_block_check_millis = 2000
 confirmations = 1
@@ -61,7 +84,12 @@ chain_type = 1
 
 [db]
 host = "localhost"
-port = 3307
+# 3399, not 3306 or 3307: this machine has a system MySQL that has occupied both
+# at different times. A published port the host might reclaim is a silent
+# hazard — the indexer connected to the wrong server for a full run, reported
+# healthy batches, and wrote every row into a database the proxy cannot see.
+# An unusual port makes that collision impossible to hit by accident.
+port = 3399
 database = "flare_ftso_indexer"
 username = "root"
 password = "root"

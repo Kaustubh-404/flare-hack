@@ -69,8 +69,11 @@ export function parseTrigger(raw: unknown): { trigger: Trigger } | { error: stri
 
 /** eth_call FtsoV2.getFeedById(bytes21) → (uint256 value, int8 decimals, uint64 timestamp). */
 export async function readFeed(feedId: string, now = Date.now()): Promise<FeedReading | null> {
-  // getFeedById(bytes21) selector
-  const selector = "0xc59d4847";
+  // keccak256("getFeedById(bytes21)")[0:4]. Verified against Coston2 rather
+  // than assumed: the wrong selector reverts, readFeed returns null, and
+  // isTriggered fails closed — so an intent would sit armed forever without a
+  // single error anywhere. Fail-closed is right, but it hides a typo perfectly.
+  const selector = "0x93e9f806";
   const arg = feedId.replace(/^0x/, "").padEnd(64, "0");
 
   try {
